@@ -1,0 +1,14 @@
+{
+  "name": "fundingflow",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "lint": "pnpm --dir apps/web lint",
+    "typecheck": "pnpm --dir apps/web typecheck",
+    "build": "pnpm --dir apps/web build",
+    "verify": "./scripts/self-test"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.4"
+  }
+}

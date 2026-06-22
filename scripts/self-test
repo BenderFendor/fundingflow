@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== FundingFlow self-test ==="
+
+echo ">>> cargo fmt --check"
+cargo fmt --all --check
+
+echo ">>> cargo check"
+cargo check --workspace --all-targets --all-features
+
+echo ">>> cargo clippy"
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+echo ">>> cargo test"
+cargo test --workspace --all-features
+
+echo ">>> pnpm --dir apps/web lint"
+pnpm --dir apps/web lint
+
+echo ">>> pnpm --dir apps/web typecheck"
+pnpm --dir apps/web typecheck
+
+echo ">>> pnpm --dir apps/web build"
+pnpm --dir apps/web build
+
+echo ">>> all checks passed"

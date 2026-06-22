@@ -1,0 +1,39 @@
+[workspace]
+members = [
+    "crates/domain",
+    "crates/db",
+    "crates/ingestion",
+    "crates/api",
+    "crates/cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "derive"] }
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+strsim = "0.11"
+sha2 = "0.10"
+regex = "1"
+
+domain = { path = "crates/domain" }
+db = { path = "crates/db" }
+ingestion = { path = "crates/ingestion" }

@@ -1,0 +1,4 @@
+ruleDirs:
+  - .agent/ast-grep-rules
+testConfigs: []
+utilDirs: []

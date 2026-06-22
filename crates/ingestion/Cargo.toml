@@ -1,0 +1,21 @@
+[package]
+name = "ingestion"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain.workspace = true
+db.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+strsim.workspace = true
+sha2.workspace = true
+async-trait.workspace = true
+regex.workspace = true

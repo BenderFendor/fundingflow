@@ -1,0 +1,17 @@
+--- crates/db/src/queries.rs
++++ crates/db/src/queries.rs
+@@ -165,11 +165,16 @@
+         SELECT e.id, e.entity_type, e.display_name,
+                COUNT(DISTINCT ei.id) as identifier_count,
+-               COUNT(DISTINCT a.id) as award_count,
+-               SUM(a.obligation_amount) as total_obligations
++               (COUNT(DISTINCT a.id) + COUNT(DISTINCT a_related.id)) as award_count,
++               (COALESCE(SUM(a.obligation_amount), 0) + COALESCE(SUM(a_related.obligation_amount), 0)) as total_obligations
+         FROM entity e
+         LEFT JOIN entity_identifier ei ON ei.entity_id = e.id
+         LEFT JOIN award a ON a.recipient_entity_id = e.id
++        LEFT JOIN relationship_edge re ON re.from_entity_id = e.id OR re.to_entity_id = e.id
++        LEFT JOIN award a_related ON (a_related.recipient_entity_id = re.from_entity_id OR a_related.recipient_entity_id = re.to_entity_id) AND a_related.recipient_entity_id != e.id
+         WHERE e.display_name ILIKE $1 OR e.canonical_name ILIKE $1
+         GROUP BY e.id
+         ORDER BY e.display_name
