@@ -46,10 +46,10 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for economic imports, credentials
 
 ### Prerequisites
 
-- Rust 1.85+
+- Current stable Rust toolchain with `rustfmt` and `clippy`
 - PostgreSQL 16+
 - Node.js 22+
-- pnpm 10+
+- pnpm 10.13.1 through Corepack or a compatible pnpm 10 installation
 
 ### Database and API
 
@@ -68,83 +68,52 @@ DATABASE_URL=postgres://fundingflow:fundingflow@localhost:5432/fundingflow \
 
 ```bash
 cd apps/web
+corepack enable
 pnpm install --frozen-lockfile
-API_URL=http://localhost:3001 \
-NEXT_PUBLIC_API_URL=http://localhost:3001 \
 pnpm dev
 ```
 
-Browser search requests use the same-origin Next.js `/api/v1/*` proxy. Server-rendered pages use the configured backend origin directly.
+The development frontend is available at `http://localhost:3000`. Browser-side API requests use the same-origin Next.js proxy at `/api/v1/*`, which forwards to `API_URL` or `NEXT_PUBLIC_API_URL` on the server.
 
 ## Verification
 
-Run the complete local repository gate:
+Run the complete local gate:
 
 ```bash
 ./scripts/self-test
 ```
 
-Run database integration tests with a disposable PostgreSQL container:
+The gate checks Rust formatting, compilation, clippy, unit tests, frontend lint, TypeScript, and the production Next.js build. Database integration tests use the disposable test stack:
 
 ```bash
 ./scripts/test-integration
 ```
 
-GitHub Actions runs Rust formatting, compilation, clippy, unit tests, database integration tests, frontend lint, TypeScript checks, the production Next.js build, and both container builds.
+Pull requests run the same core checks in GitHub Actions and also build both production container images.
 
-## Data sources
+## Product surfaces
 
-| Source | Description |
-| --- | --- |
-| USAspending.gov | Federal awards, recipients, agencies, award amounts, and performance locations |
-| LDA.gov | Lobbying registrations, quarterly filings, clients, registrants, lobbyists, and issues |
-| FEC.gov / OpenFEC | Committees, candidates, contributions, transfers, and campaign-finance records |
-| SEC EDGAR | Company filings, XBRL facts, CIK identifiers, and disclosed subsidiaries |
-| Federal Register | Rulemaking documents, agencies, publication dates, and docket references |
-| BLS and Census | Labor, prices, wages, housing, population, and state/county economic conditions |
+- Unified entity and geography search
+- Entity profiles with identifiers, aliases, awards, lobbying, relationships, economic context, and campaign finance
+- State profiles with labor, wages, housing, food, energy, income, and public-money context
+- National cost basket and household-pressure indicators
+- Data-lineage and methodology documentation
+- Source-backed evidence and neutral relationship labels
 
-## API endpoints
+## API examples
 
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/health` | Process liveness check |
-| GET | `/ready` | Database readiness check |
-| GET | `/api/v1/search?q=...&limit=...&offset=...` | Unified entity and geography search |
-| GET | `/api/v1/entities/search?q=...&limit=...&offset=...` | Entity search |
-| GET | `/api/v1/entities/search/fuzzy?q=...&threshold=...` | Fuzzy entity search |
-| GET | `/api/v1/entities/{id}` | Entity with identifiers and aliases |
-| GET | `/api/v1/entities/{entity_id}/awards` | Awards for an entity |
-| GET | `/api/v1/entities/{entity_id}/lobbying` | Lobbying filings for an entity |
-| GET | `/api/v1/entities/{entity_id}/edges` | Relationship edges for an entity |
-| GET | `/api/v1/entities/{entity_id}/contributions` | Campaign-finance summary and transactions |
-| GET | `/api/v1/geos/{geo_id}/profile` | State or county profile |
-| GET | `/api/v1/geos/{geo_id}/metrics` | Latest economic observations |
-| GET | `/api/v1/geos/{geo_id}/public-money` | Public spending summary |
-| GET | `/api/v1/pulse/national` | National economic pulse |
-| GET | `/api/v1/contributions/search` | Contributor search |
-| GET | `/api/v1/candidates/search` | Candidate search |
-| GET | `/api/v1/contributions/flow` | Source-to-candidate money flow |
-| GET | `/api/v1/contributions/top-donors` | Top donors for a committee |
+```bash
+curl "http://localhost:3001/api/v1/search?q=California&limit=5"
+curl "http://localhost:3001/api/v1/entities/search?q=Lockheed&limit=5"
+curl "http://localhost:3001/api/v1/pulse/national"
+curl "http://localhost:3001/api/v1/geos/PA/profile"
+```
 
-## Relationship edge types
+See `AGENTS.md` for a broader endpoint checklist and importer commands.
 
-- `recipient_received_federal_obligation`
-- `agency_obligated_award_to_recipient`
-- `registrant_lobbied_for_client`
-- `lobbyist_listed_on_filing`
-- `client_reported_lobbying_issue`
-- `person_contributed_to_committee`
-- `committee_received_contribution`
-- `employer_reported_on_contribution`
-- `company_filed_sec_report`
-- `company_reported_revenue_fact`
-- `company_disclosed_subsidiary`
-- `agency_published_rulemaking_document`
-- `entity_submitted_rulemaking_comment`
+## Interpretation
 
-## Disclaimer
-
-FundingFlow shows relationships documented in public records. These links do not prove causation, intent, policy influence, favoritism, or wrongdoing.
+FundingFlow shows relationships documented in public records. These links do not prove causation, intent, policy influence, favoritism, or wrongdoing. Obligated federal amounts are not recognized company revenue, and national or regional economic observations are not silently presented as local data.
 
 ## License
 
