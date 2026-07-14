@@ -49,7 +49,7 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for economic imports, credentials
 - Current stable Rust toolchain with `rustfmt` and `clippy`
 - PostgreSQL 16+
 - Node.js 22+
-- pnpm 10.13.1 through Corepack or a compatible pnpm 10 installation
+- pnpm 10.25.0
 
 ### Database and API
 
@@ -66,11 +66,12 @@ DATABASE_URL=postgres://fundingflow:fundingflow@localhost:5432/fundingflow \
 
 ### Frontend
 
+Install the repository workspace from its single root lockfile:
+
 ```bash
-cd apps/web
-corepack enable
+npm install --global pnpm@10.25.0
 pnpm install --frozen-lockfile
-pnpm dev
+pnpm --dir apps/web dev
 ```
 
 The development frontend is available at `http://localhost:3000`. Browser-side API requests use the same-origin Next.js proxy at `/api/v1/*`, which forwards to `API_URL` or `NEXT_PUBLIC_API_URL` on the server.
