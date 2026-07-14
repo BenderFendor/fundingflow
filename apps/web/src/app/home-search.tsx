@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { formatMoney, unifiedSearch } from "@/lib/types";
+import { formatMoney } from "@/lib/types";
 import type { EntitySummary, Geo } from "@/lib/types";
+import { unifiedSearchClient } from "@/lib/client-api";
 import { CropMarks, Decimals } from "@/components/ui";
 
 export function HomeSearch() {
@@ -20,7 +21,7 @@ export function HomeSearch() {
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const data = await unifiedSearch(query.trim());
+      const data = await unifiedSearchClient(query.trim());
       setEntities(data.entities);
       setEntityTotal(data.entity_total);
       setGeos(data.geos);
@@ -116,7 +117,7 @@ export function HomeSearch() {
                 <h3 className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Organizations and people</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[1px] bg-white/10 border border-white/10">
-                {entities.map((entity, i) => {
+                {entities.map((entity) => {
                   return (
                     <button
                       key={entity.id}
