@@ -82,7 +82,15 @@ pub async fn seed_test_data(pool: &sqlx::PgPool) -> TestSeed {
             entity.id,
             &IdentifierSource::Usaspending,
             &IdentifierType::Uei,
-            &format!("{}-{}", name.to_uppercase().replace(' ', ""), &run_id[..8]),
+            &if *name == "Tesla Inc" {
+                "UEI-TESLAINC".to_string()
+            } else {
+                format!(
+                    "UEI-{}-{}",
+                    name.to_uppercase().replace(' ', ""),
+                    &run_id[..8]
+                )
+            },
             Some(ev.id),
         )
         .await;
