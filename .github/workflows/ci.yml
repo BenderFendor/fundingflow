@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fundingflow
+          POSTGRES_PASSWORD: fundingflow
+          POSTGRES_DB: fundingflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fundingflow -d fundingflow_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://fundingflow:fundingflow@localhost:5432/fundingflow_test
+      TEST_DATABASE_URL: postgres://fundingflow:fundingflow@localhost:5432/fundingflow_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        id: formatting
+        continue-on-error: true
+        shell: bash
+        run: |
+          if cargo fmt --all --check; then
+            exit 0
+          fi
+          cargo fmt --all
+          git diff -- . > rustfmt.patch
+          exit 1
+      - name: Upload rustfmt patch
+        if: steps.formatting.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-patch
+          path: rustfmt.patch
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce formatting
+        if: steps.formatting.outcome == 'failure'
+        run: |
+          echo "::error::Rust sources need formatting. Download the rustfmt-patch artifact."
+          exit 1
+      - name: Compile
+        run: cargo check --locked --workspace --all-targets --all-features
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Unit tests
+        run: cargo test --locked --workspace --all-features
+      - name: Migrate integration database
+        run: cargo run --locked --bin cli -- migrate
+      - name: Database integration tests
+        id: db_integration
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p db --test db_integration -- --ignored --nocapture --test-threads=1 2>&1 | tee db-integration.log
+      - name: Upload database test log
+        if: steps.db_integration.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-integration-log
+          path: db-integration.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce database integration tests
+        if: steps.db_integration.outcome == 'failure'
+        run: |
+          echo "::error::Database integration tests failed. Download the db-integration-log artifact."
+          exit 1
+
+  web:
+    name: Web checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install --global pnpm@10.25.0
+      - name: Install dependencies
+        id: web_install
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee pnpm-install.log
+      - name: Upload pnpm install log
+        if: steps.web_install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-install-log
+          path: apps/web/pnpm-install.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce dependency installation
+        if: steps.web_install.outcome == 'failure'
+        run: |
+          echo "::error::Frozen pnpm installation failed. Download the pnpm-install-log artifact."
+          exit 1
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build
+
+  containers:
+    name: Container build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: fundingflow-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Build web image
+        id: web_container
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          docker buildx build \
+            --progress=plain \
+            --build-arg NEXT_PUBLIC_API_URL=http://api:3001 \
+            --file apps/web/Dockerfile \
+            --tag fundingflow-web:ci \
+            . 2>&1 | tee web-container.log
+      - name: Upload web container log
+        if: steps.web_container.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-container-log
+          path: web-container.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce web container build
+        if: steps.web_container.outcome == 'failure'
+        run: |
+          echo "::error::Web container build failed. Download the web-container-log artifact."
+          exit 1

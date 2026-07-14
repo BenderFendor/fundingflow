@@ -6,48 +6,62 @@ This file is the source of truth for FundingFlow frontend design rules. Update i
 
 FundingFlow uses an archival intelligence terminal style. The interface should feel like public records, financial ledgers, field reports, and data screens in one system.
 
-The current visual references point to:
+The visual language combines:
 
-- Editorial archive pages with oversized serif ghosts, thin rules, pale paper, and heavy black outlines.
-- Bitmap and terminal typography for numbers, series IDs, and source labels.
-- Dark scanline dashboards with dense evidence panels.
-- Muted sage and paper surfaces with sharp orange, yellow, electric blue, cyan, and lavender panels.
-- Simple block charts and ranked ledgers instead of decorative chart chrome.
+- Archival paper with hard black rules, registration marks, and oversized index numerals.
+- Dark evidence terminals with dense source labels and high-contrast values.
+- Blueprint panels for methodology, provenance, and system explanations.
+- A tight accent set: acid green, yellow, orange, cyan, lavender, and electric blue.
+- Ranked ledgers, block charts, and evidence matrices instead of generic card piles.
 
 ## Core Tokens
 
-- Background: near-black with faint grid and scanline texture.
-- Paper: warm off-white for archival headers and source-backed explanations.
-- Terminal: deep black panels for operational data.
-- Electric blue: use for blueprint or intelligence panels.
-- Yellow: use for primary actions and key public-money totals.
-- Orange: use for pressure, risk, or high-attention derived metrics.
-- Lavender: use for comparison ratios and secondary metrics.
-- Cyan: use for calm summary surfaces and highlight bars.
+- Background: near-black with a restrained grid, grain, and occasional radial signal glow.
+- Paper: warm off-white for primary search surfaces, document introductions, and source-backed explanations.
+- Terminal: raised near-black panels for operational data and results.
+- Electric blue: provenance, methodology, and system-detail panels.
+- Acid green: active search, system status, links, and high-signal labels.
+- Yellow: primary public-money totals and selected derived indicators.
+- Orange: pressure, warnings, and high-attention derived metrics.
+- Lavender: ratios, comparisons, and secondary derived metrics.
+- Cyan: calm summaries and national price context.
 
-Keep the palette tight. Do not introduce purple gradients, soft SaaS backgrounds, or random accent colors.
+Keep the palette tight. Do not introduce purple gradients, soft SaaS backgrounds, glass-card piles, or unrelated accent colors.
 
 ## Typography
 
-- Primary UI type can stay system sans.
-- Use `ff-mono-num` for monetary values, percentages, counts, and chart values.
-- Use `ff-micro` for labels, metric scopes, source tags, and table headers.
-- Use serif type only as a large background or editorial marker, not for dense UI copy.
-- Use tight tracking on display headings. Do not scale text with viewport units.
+- Use Space Grotesk or the system sans fallback for display and interface copy.
+- Use Azeret Mono or the system monospace fallback for money, percentages, counts, dates, source IDs, and controls.
+- Use `ff-mono-num` or `ff-pixel` for tabular values.
+- Use `ff-micro` and `ff-kicker` for source tags, scopes, section labels, and system status.
+- Large headings should use tight tracking and compact line-height.
+- Do not scale important text with viewport units.
 
 ## Layout
 
-- Start product screens with the working surface: search, metrics, charts, ledgers, or evidence.
-- Use strong panels, ranked rows, and source labels. Avoid generic dashboard card piles.
-- Large empty panels are not acceptable. If data is missing, show the missing source, scope, and a useful next action or adjacent dataset.
-- Keep rounded corners under 2rem unless a page already uses a hero-scale panel.
-- Prefer visible evidence boards over marketing copy.
+- Start product screens with the working surface: search, metrics, ledgers, evidence, or methodology.
+- Use square or lightly rounded panels. Most product panels should not look like consumer SaaS cards.
+- Keep primary content inside a shared maximum width of about 1440 pixels.
+- Use thin continuous rules to connect related information across a grid.
+- Use strong contrast between paper, terminal, and blueprint surfaces.
+- Large empty panels are not acceptable. Missing data must name the missing source or import and provide a useful adjacent action.
+- Keep dense pages readable on mobile by collapsing grids into ordered ledgers, not by shrinking text.
+
+## Interaction
+
+- Every interactive element must have a visible `:focus-visible` state.
+- Links that navigate to records should use semantic links rather than clickable cards implemented as buttons.
+- Hover motion should be restrained to small vertical shifts or color changes.
+- Respect reduced-motion preferences.
+- Search must expose loading, error, empty, and result states to assistive technology.
+- Sticky navigation should remain compact and preserve the working surface.
 
 ## Graphs And Data Display
 
-- Graphs should answer a concrete question before the user reads the rows.
+- A graph or chart should answer a concrete question before the user reads the rows.
 - Use block bars, ranked ledgers, and compact matrix tables for first-pass scanning.
 - Show source, date, vintage, and geography where the value can be misread.
+- Do not display decorative charts that are disconnected from actual observations.
 - Never combine separate demographic cuts as if they were intersectional data.
 - Missing race-by-gender, county, or state food data must be labeled as not imported.
 - Do not convert missing data to zero.
@@ -63,7 +77,8 @@ Keep the palette tight. Do not introduce purple gradients, soft SaaS backgrounds
 ## Frontend Workflow
 
 - Before frontend design work, read this file and the nearest `AGENTS.md`.
-- Use the inspo folder as direction, not as a literal asset dump unless the user asks to display images.
+- Use the inspiration folder as direction, not as a literal asset dump unless the user asks to display images.
+- Prefer shared primitives in `src/components/ui.tsx`, `site-header.tsx`, and `site-footer.tsx` over repeated page-local markup.
 - After UI changes, run typecheck, lint, and build when feasible.
-- Use Chrome MCP screenshots for desktop and mobile.
+- Render or screenshot desktop and mobile views when browser tooling is available.
 - When design principles change, update this file in the same change.

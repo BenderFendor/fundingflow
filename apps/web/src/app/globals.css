@@ -2,43 +2,82 @@
 @import "tailwindcss";
 
 :root {
-  --ff-black: #060709;
-  --ff-panel: #111317;
-  --ff-ink: #0c0d0a;
-  --ff-paper: #f0ede6;
-  --ff-sage: #9cb199;
-  --ff-cyan: #d2f1ec;
-  --ff-blue: #1c33e6;
+  --ff-black: #050607;
+  --ff-black-soft: #0b0d10;
+  --ff-panel: #101318;
+  --ff-panel-raised: #161a20;
+  --ff-ink: #10110e;
+  --ff-paper: #f2efe7;
+  --ff-paper-muted: #ddd9ce;
+  --ff-sage: #a3b7a0;
+  --ff-cyan: #d0f1ed;
+  --ff-blue: #2140e8;
   --ff-yellow: #f8df1d;
-  --ff-orange: #e96b4c;
-  --ff-lavender: #a69ad1;
-  --ff-grid: rgba(255, 255, 255, 0.04);
-  --ff-border: rgba(255, 255, 255, 0.12);
+  --ff-acid: #dfff00;
+  --ff-orange: #ee744f;
+  --ff-lavender: #aa9fda;
+  --ff-muted: #8c939f;
+  --ff-grid: rgba(255, 255, 255, 0.045);
+  --ff-border: rgba(255, 255, 255, 0.13);
+  --ff-border-strong: rgba(255, 255, 255, 0.22);
+  --ff-shadow: 8px 8px 0 rgba(0, 0, 0, 0.34);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html {
   background: var(--ff-black);
+  color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--ff-black);
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 8% -10%, rgba(33, 64, 232, 0.18), transparent 30rem),
+    radial-gradient(circle at 88% 8%, rgba(223, 255, 0, 0.08), transparent 24rem),
+    var(--ff-black);
+  color: #e8ebef;
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
-/* Fluid Easing Utility */
-.ff-fluid {
-  transition-property: all;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  transition-duration: 400ms;
+body::after {
+  pointer-events: none;
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  opacity: 0.022;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-body::selection {
-  background: rgba(247, 223, 30, 0.35);
+::selection {
+  background: rgba(223, 255, 0, 0.78);
+  color: #090a08;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
 }
 
 .ff-shell {
   position: relative;
   isolation: isolate;
+  min-height: 100vh;
 }
 
 .ff-shell::before {
@@ -47,44 +86,218 @@ body::selection {
   position: fixed;
   inset: 0;
   z-index: -1;
+  background-image:
+    linear-gradient(var(--ff-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ff-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 72%);
+  opacity: 0.48;
+}
+
+.ff-paper {
   background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.025),
-      rgba(255, 255, 255, 0.025) 1px,
-      transparent 1px,
-      transparent 5px
-    );
-  opacity: 0.36;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5), transparent 45%),
+    var(--ff-paper);
+  color: var(--ff-ink);
+  border: 1px solid rgba(12, 13, 10, 0.22);
+  box-shadow: var(--ff-shadow);
 }
 
-.ff-paper, .ff-terminal, .ff-blueprint {
-  background-color: transparent;
-  color: var(--ff-paper);
-  border: none;
-  box-shadow: none;
+.ff-terminal {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
+    var(--ff-panel);
+  color: #f2f4f7;
+  border: 1px solid var(--ff-border);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
 }
 
-/* Remove hover scales for a flat editorial feel, rely on color and lines instead */
+.ff-blueprint {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    var(--ff-blue);
+  background-size: 22px 22px;
+  color: #f7f5e8;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: var(--ff-shadow);
+}
+
+.ff-panel {
+  background: rgba(13, 16, 20, 0.9);
+  border: 1px solid var(--ff-border);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.ff-panel-soft {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+}
+
+.ff-heavy-border {
+  border: 2px solid currentColor;
+}
+
 .ff-fluid {
-  transition: all 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .ff-fluid:hover {
-  transform: none;
-  background-color: rgba(255, 255, 255, 0.03);
+  transform: translateY(-1px);
+}
+
+.ff-interactive {
+  transition:
+    border-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ff-interactive:hover {
+  transform: translateY(-2px);
+}
+
+.ff-focus-ring:focus-visible {
+  outline: 2px solid var(--ff-acid);
+  outline-offset: 3px;
+}
+
+.ff-serif,
+.ff-sans-wide {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
 .ff-serif {
-  font-family: "Space Grotesk", sans-serif;
-  letter-spacing: -0.05em;
-}
-
-.ff-mono-num, .ff-micro, .ff-pixel {
-  font-family: "Azeret Mono", monospace;
+  letter-spacing: -0.055em;
 }
 
 .ff-sans-wide {
-  font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.045em;
+}
+
+.ff-mono-num,
+.ff-micro,
+.ff-pixel {
+  font-family: "Azeret Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.ff-micro {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.ff-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: "Azeret Mono", ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ff-kicker::before {
+  content: "";
+  width: 0.52rem;
+  height: 0.52rem;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.ff-rule {
+  height: 1px;
+  background: linear-gradient(90deg, currentColor, transparent);
+  opacity: 0.28;
+}
+
+.ff-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.ff-scanline::after {
+  pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0.026) 1px,
+    transparent 1px,
+    transparent 5px
+  );
+  opacity: 0.34;
+}
+
+.ff-enter {
+  animation: ff-enter 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ff-enter-delay-1 {
+  animation-delay: 80ms;
+}
+
+.ff-enter-delay-2 {
+  animation-delay: 160ms;
+}
+
+@keyframes ff-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070809;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #303640;
+  border: 2px solid #070809;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5360;
+}
+
+@media (max-width: 640px) {
+  .ff-paper,
+  .ff-blueprint {
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
