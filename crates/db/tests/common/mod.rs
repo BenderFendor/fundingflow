@@ -21,6 +21,11 @@ pub struct TestSeed {
 }
 
 pub async fn seed_test_data(pool: &sqlx::PgPool) -> TestSeed {
+    sqlx::query("TRUNCATE TABLE entity, source_record CASCADE")
+        .execute(pool)
+        .await
+        .unwrap();
+
     let mut seed = TestSeed {
         companies: Vec::new(),
         people: Vec::new(),
