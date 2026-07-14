@@ -104,7 +104,7 @@ jobs:
         with:
           node-version: 22
       - name: Install pnpm
-        run: npm install --global pnpm@10.13.1
+        run: npm install --global pnpm@10.25.0
       - name: Install dependencies
         id: web_install
         continue-on-error: true
@@ -158,7 +158,7 @@ jobs:
             --build-arg NEXT_PUBLIC_API_URL=http://api:3001 \
             --file apps/web/Dockerfile \
             --tag fundingflow-web:ci \
-            apps/web 2>&1 | tee web-container.log
+            . 2>&1 | tee web-container.log
       - name: Upload web container log
         if: steps.web_container.outcome == 'failure'
         uses: actions/upload-artifact@v4
