@@ -72,7 +72,25 @@ jobs:
       - name: Migrate integration database
         run: cargo run --locked --bin cli -- migrate
       - name: Database integration tests
-        run: cargo test --locked -p db --test db_integration -- --ignored --nocapture --test-threads=1
+        id: db_integration
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p db --test db_integration -- --ignored --nocapture --test-threads=1 2>&1 | tee db-integration.log
+      - name: Upload database test log
+        if: steps.db_integration.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-integration-log
+          path: db-integration.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce database integration tests
+        if: steps.db_integration.outcome == 'failure'
+        run: |
+          echo "::error::Database integration tests failed. Download the db-integration-log artifact."
+          exit 1
 
   web:
     name: Web checks
@@ -88,7 +106,25 @@ jobs:
       - name: Install pnpm
         run: npm install --global pnpm@10.13.1
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        id: web_install
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee pnpm-install.log
+      - name: Upload pnpm install log
+        if: steps.web_install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-install-log
+          path: apps/web/pnpm-install.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enforce dependency installation
+        if: steps.web_install.outcome == 'failure'
+        run: |
+          echo "::error::Frozen pnpm installation failed. Download the pnpm-install-log artifact."
+          exit 1
       - name: Lint
         run: pnpm lint
       - name: Typecheck
