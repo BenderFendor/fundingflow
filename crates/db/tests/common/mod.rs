@@ -91,7 +91,7 @@ pub async fn seed_test_data(pool: &sqlx::PgPool) -> TestSeed {
                 "UEI-TESLAINC".to_string()
             } else {
                 format!(
-                    "UEI-{}-{}",
+                    "TEST-{}-{}",
                     name.to_uppercase().replace(' ', ""),
                     &run_id[..8]
                 )
