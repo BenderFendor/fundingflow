@@ -1,0 +1,100 @@
+name: Isolate database identifiers once
+
+on:
+  push:
+    branches:
+      - agent/finish-runtime-and-delivery
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/finish-runtime-and-delivery
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Make identifier fixtures run-local
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          common = Path("crates/db/tests/common/mod.rs")
+          text = common.read_text()
+          text = text.replace(
+              '    pub companies: Vec<(Uuid, String)>,\n',
+              '    pub companies: Vec<(Uuid, String)>,\n    pub company_identifiers: Vec<String>,\n',
+              1,
+          )
+          text = text.replace(
+              '        companies: Vec::new(),\n',
+              '        companies: Vec::new(),\n        company_identifiers: Vec::new(),\n',
+              1,
+          )
+          old = '''        let _ = db::queries::create_entity_identifier(
+            pool,
+            entity.id,
+            &IdentifierSource::Usaspending,
+            &IdentifierType::Uei,
+            &if *name == "Tesla Inc" {
+                "UEI-TESLAINC".to_string()
+            } else {
+                format!(
+                    "UEI-{}-{}",
+                    name.to_uppercase().replace(' ', ""),
+                    &run_id[..8]
+                )
+            },
+            Some(ev.id),
+        )
+        .await;
+
+        seed.companies.push((entity.id, name.to_string()));'''
+          new = '''        let identifier = format!(
+            "UEI-{}-{}",
+            name.to_uppercase().replace(' ', ""),
+            &run_id[..8]
+        );
+        db::queries::create_entity_identifier(
+            pool,
+            entity.id,
+            &IdentifierSource::Usaspending,
+            &IdentifierType::Uei,
+            &identifier,
+            Some(ev.id),
+        )
+        .await
+        .unwrap();
+
+        seed.companies.push((entity.id, name.to_string()));
+        seed.company_identifiers.push(identifier);'''
+          if old not in text:
+              raise SystemExit("expected identifier fixture block was not found")
+          common.write_text(text.replace(old, new, 1))
+
+          tests = Path("crates/db/tests/db_integration.rs")
+          text = tests.read_text()
+          text = text.replace(
+              '        "UEI-TESLAINC",\n',
+              '        &_seed.company_identifiers[0],\n',
+              1,
+          )
+          text = text.replace(
+              '    let result = db::queries::search_entities(&pool, "UEI-", 10, 0)\n',
+              '    let result = db::queries::search_entities(&pool, &_seed.company_identifiers[0], 10, 0)\n',
+              1,
+          )
+          tests.write_text(text)
+          PY
+          cargo fmt --all
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/db/tests/common/mod.rs crates/db/tests/db_integration.rs
+          git commit -m "Isolate database identifier fixtures"
+          git push origin HEAD:agent/finish-runtime-and-delivery
