@@ -1,14 +1,14 @@
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: fundingflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fundingflow}
-      POSTGRES_DB: fundingflow
+      POSTGRES_USER: ${POSTGRES_USER:-fundingflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-fundingflow}
     volumes:
       - fundingflow-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fundingflow -d fundingflow"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fundingflow} -d ${POSTGRES_DB:-fundingflow}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -18,11 +18,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: postgres://fundingflow:${POSTGRES_PASSWORD:-fundingflow}@db:5432/fundingflow
     command: ["cli", "migrate"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-fundingflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fundingflow}
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     restart: "no"
 
@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://fundingflow:${POSTGRES_PASSWORD:-fundingflow}@db:5432/fundingflow
+      DATABASE_URL: postgres://${POSTGRES_USER:-fundingflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fundingflow}
       PORT: 3001
       RUST_LOG: ${RUST_LOG:-info}
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:3000}
@@ -48,8 +48,8 @@ services:
 
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://api:3001
     environment:
