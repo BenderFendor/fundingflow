@@ -603,9 +603,18 @@ mod tests {
     fn limit_validation_rejects_negative_zero_and_excessive_values() {
         assert_eq!(validated_limit(None, 20, 100).unwrap(), 20);
         assert_eq!(validated_limit(Some(1), 20, 100).unwrap(), 1);
-        assert_eq!(validated_limit(Some(0), 20, 100), Err(StatusCode::BAD_REQUEST));
-        assert_eq!(validated_limit(Some(-1), 20, 100), Err(StatusCode::BAD_REQUEST));
-        assert_eq!(validated_limit(Some(101), 20, 100), Err(StatusCode::BAD_REQUEST));
+        assert_eq!(
+            validated_limit(Some(0), 20, 100),
+            Err(StatusCode::BAD_REQUEST)
+        );
+        assert_eq!(
+            validated_limit(Some(-1), 20, 100),
+            Err(StatusCode::BAD_REQUEST)
+        );
+        assert_eq!(
+            validated_limit(Some(101), 20, 100),
+            Err(StatusCode::BAD_REQUEST)
+        );
     }
 
     #[test]
@@ -627,10 +636,7 @@ mod tests {
             validated_threshold(Some(f64::NAN)),
             Err(StatusCode::BAD_REQUEST)
         );
-        assert_eq!(
-            validated_threshold(Some(1.1)),
-            Err(StatusCode::BAD_REQUEST)
-        );
+        assert_eq!(validated_threshold(Some(1.1)), Err(StatusCode::BAD_REQUEST));
     }
 
     #[test]
