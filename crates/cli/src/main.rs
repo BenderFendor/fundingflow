@@ -3,7 +3,9 @@ use clap::{Parser, Subcommand};
 use ingestion::Importer;
 use sqlx::PgPool;
 use tracing::info;
-
+// This whole this shouldn't be a cli at all the api or the backend really should live pull and
+// update the database with this infomation using the .env keys and stuff this shouldn't be a two
+// part process but one thing
 #[derive(Parser)]
 #[command(name = "fundingflow")]
 #[command(about = "FundingFlow CLI - manage and import public record data")]
@@ -155,7 +157,19 @@ async fn run_import(pool: &PgPool, source: &str) -> Result<()> {
             );
         }
         "fec" => {
-            let importer = ingestion::fec::FecImporter::new("data/fec");
+            let importer =
+                ingestion::fec::FecImporter::new("https://www.fec.gov/files/bulk-downloads", 2024);
+            let summary = importer.import(pool).await?;
+            info!(
+                "import: {} records, {} entities, {} skipped, {} errors",
+                summary.records_imported,
+                summary.entities_created,
+                summary.records_skipped,
+                summary.errors
+            );
+        }
+        "openfec-schedule-e" => {
+            let importer = ingestion::openfec_api::ScheduleEImporter::new(2024);
             let summary = importer.import(pool).await?;
             info!(
                 "import: {} records, {} entities, {} skipped, {} errors",
@@ -166,7 +180,7 @@ async fn run_import(pool: &PgPool, source: &str) -> Result<()> {
             );
         }
         "sec" => {
-            let importer = ingestion::sec::SecImporter::new("https://data.sec.gov");
+            let importer = ingestion::sec::SecImporter::new("https://data.sec.gov", 0);
             let summary = importer.import(pool).await?;
             info!(
                 "import: {} records, {} entities, {} skipped, {} errors",
@@ -233,6 +247,7 @@ async fn run_derive(pool: &PgPool, metric: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),

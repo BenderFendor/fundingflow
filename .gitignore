@@ -28,3 +28,9 @@ Thumbs.db
 # Database
 *.db
 *.sqlite
+
+# Data (downloaded datasets, too large for git)
+/data/
+
+# Design inspiration
+/inspo/

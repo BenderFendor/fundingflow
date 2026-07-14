@@ -5,7 +5,9 @@ use sqlx::PgPool;
 
 pub mod economic;
 pub mod fec;
+pub mod fec_txn;
 pub mod lda;
+pub mod openfec_api;
 pub mod rulemaking;
 pub mod sec;
 pub mod usaspending;

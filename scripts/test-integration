@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== FundingFlow integration tests ==="
+
+COMPOSE_FILE="docker-compose.test.yml"
+TEST_DB_PORT="${TEST_DB_PORT:-5433}"
+
+cleanup() {
+  echo ">>> stopping test database"
+  docker compose -f "$COMPOSE_FILE" down --volumes 2>/dev/null || true
+}
+
+trap cleanup EXIT
+
+echo ">>> starting disposable Postgres on port $TEST_DB_PORT"
+docker compose -f "$COMPOSE_FILE" up -d --wait postgres-test
+
+echo ">>> running migrations"
+DATABASE_URL="postgres://fundingflow:fundingflow@localhost:${TEST_DB_PORT}/fundingflow_test" \
+  cargo run --bin cli -- migrate 2>/dev/null || \
+  cargo run --bin cli -- migrate
+
+echo ">>> running integration tests"
+TEST_DATABASE_URL="postgres://fundingflow:fundingflow@localhost:${TEST_DB_PORT}/fundingflow_test" \
+  cargo test --workspace --all-features -- --ignored --nocapture --test-threads=1
+
+echo ">>> integration tests passed"

@@ -23,7 +23,7 @@ anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 axum = { version = "0.8", features = ["macros"] }
@@ -33,6 +33,10 @@ dotenvy = "0.15"
 strsim = "0.11"
 sha2 = "0.10"
 regex = "1"
+zip = "2"
+futures-util = "0.3"
+memmap2 = "0.9"
+rayon = "1"
 
 domain = { path = "crates/domain" }
 db = { path = "crates/db" }

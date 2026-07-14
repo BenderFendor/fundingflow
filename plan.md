@@ -1145,17 +1145,27 @@ Current implemented slice:
   - USAspending state federal award obligations.
 - Keyed importer implemented with safe no-key skip:
   - Census ACS 2024 5-year state income, rent, rent burden, and poverty metrics.
+  - HUD Fair Market Rent state-level 2BR median across counties, with state_alpha and FIPS code mapping.
+  - EIA weekly U.S. regular conventional retail gasoline price.
+  - BEA Regional state GDP (SQGDP9) and personal income (SAINC5N), millions of current dollars.
 - Fixture importer remains for missing-key/local development values and national pulse placeholders.
 - Derived state MVP metrics implemented: rent hours at effective minimum wage, rent hours at average hourly earnings, and contract intensity.
 - Derived national cost-basket metrics implemented: BLS food basket cost and food basket as a percent of average weekly wage.
+- Frontend national pulse page: homepage fetches live national pulse server-side, displays CPI, food prices, labor, gas metrics.
+- Frontend cost basket page at `/cost-basket` with component prices, derived metrics, and methodology.
+- Frontend county page scaffold at `/counties/[stateCode]/[countyCode]` awaiting county data.
+- Frontend company economic-context panel: entity pages show state profile links extracted from award geography.
+- Deterministic frontend builds: system font stack replaces remote font references.
+- Database integration test infrastructure: `docker-compose.test.yml` + `scripts/test-integration` for disposable Postgres test runs.
 - Verified with local Postgres imports, direct SQL inspection, API endpoint checks, frontend visual checks, and `./scripts/self-test`.
 
 Known implementation gaps still in scope:
 
-- Replace fixture placeholders with live or keyed imports for BLS CES/CPI average prices, BEA Regional Accounts, Census ACS, HUD FMR, EIA gas, USDA ERS, SAIPE, IRS SOI, union/work stoppage, injury, health, debt, finance, public-finance, concentration, and local property/eviction layers.
+- Replace fixture placeholders with live or keyed imports for USDA ERS, SAIPE, IRS SOI, union/work stoppage, injury, health, debt, finance, public-finance, concentration, and local property/eviction layers.
 - Add company/facility/county joins from award recipients and places of performance into the economic-conditions layer.
-- Add county pages, cost basket page, company economic-conditions panel, and national pulse live CPI/price data.
-- Add stronger database integration tests that run against a disposable Postgres instance instead of staying ignored by default.
+- Add live county profile pages with imported county data.
+- Add BLS QCEW and other county-level importers to populate county profiles.
+- Add stronger database integration tests that run against a disposable Postgres instance instead of staying ignored by default (infrastructure exists via `scripts/test-integration`; tests remain `#[ignore]`).
 
 ## Reference Links
 

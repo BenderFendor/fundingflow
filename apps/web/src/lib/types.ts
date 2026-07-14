@@ -185,8 +185,26 @@ export interface GeoSearchResult {
   total: number;
 }
 
+export interface UnifiedSearchResult {
+  entities: EntitySummary[];
+  entity_total: number;
+  geos: Geo[];
+  geo_total: number;
+}
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+export async function unifiedSearch(
+  q: string,
+  limit = 20,
+  offset = 0
+): Promise<UnifiedSearchResult> {
+  const params = new URLSearchParams({ q, limit: String(limit), offset: String(offset) });
+  const res = await fetch(`${API_BASE}/api/v1/search?${params}`);
+  if (!res.ok) throw new Error(`unified search failed: ${res.status}`);
+  return res.json();
+}
 
 export async function searchEntities(
   q: string,
@@ -223,6 +241,14 @@ export async function getEntityEdges(entityId: string): Promise<RelationshipEdge
   return res.json();
 }
 
+export async function getEntityEconomicContext(
+  entityId: string
+): Promise<StateProfile[]> {
+  const res = await fetch(`${API_BASE}/api/v1/entities/${entityId}/economic-context`);
+  if (!res.ok) throw new Error(`economic context fetch failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getNationalPulse(): Promise<NationalPulse> {
   const res = await fetch(`${API_BASE}/api/v1/pulse/national`, {
     next: { revalidate: 60 },
@@ -243,6 +269,24 @@ export async function getStateProfile(geoId: string): Promise<StateProfile> {
     next: { revalidate: 60 },
   });
   if (!res.ok) throw new Error(`state profile fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getMetricHistory(
+  geoId: string,
+  metricId: string,
+  from?: string,
+  to?: string,
+  limit = 500
+): Promise<MetricObservationWithDetails[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const res = await fetch(
+    `${API_BASE}/api/v1/geos/${geoId}/metrics/${metricId}/history?${params}`,
+    { next: { revalidate: 60 } }
+  );
+  if (!res.ok) throw new Error(`metric history fetch failed: ${res.status}`);
   return res.json();
 }
 
@@ -268,6 +312,7 @@ export function formatMetricValue(value: number, unit: string): string {
   if (unit === "usd_per_gallon") return `$${value.toFixed(2)}/gal`;
   if (unit === "usd_per_dozen") return `$${value.toFixed(2)}/doz`;
   if (unit === "usd_per_lb") return `$${value.toFixed(2)}/lb`;
+  if (unit === "usd_per_week") return `$${Math.round(value).toLocaleString()}/wk`;
   if (unit === "jobs") return value.toLocaleString();
   return value.toLocaleString();
 }
@@ -299,6 +344,178 @@ export function edgeTypeLabel(edgeType: string): string {
     company_disclosed_subsidiary: "Company disclosed subsidiary",
     agency_published_rulemaking_document: "Agency published document",
     entity_submitted_rulemaking_comment: "Submitted comment",
+    committee_contributed_to_candidate: "Committee contributed to candidate",
+    committee_transferred_to_committee: "Committee transferred to committee",
+    candidate_supported_by_committee: "Candidate supported by committee",
   };
   return labels[edgeType] ?? edgeType;
+}
+
+// Campaign finance types
+
+export interface CampaignFinanceTransaction {
+  id: string;
+  transaction_id: string;
+  committee_entity_id: string | null;
+  contributor_entity_id: string | null;
+  candidate_entity_id: string | null;
+  amount: number | null;
+  date: string | null;
+  employer_text: string | null;
+  occupation_text: string | null;
+  transaction_type: string | null;
+  evidence_id: string | null;
+  contributor_city: string | null;
+  contributor_state: string | null;
+  contributor_zip: string | null;
+  committee_fec_id: string | null;
+  candidate_fec_id: string | null;
+  memo_text: string | null;
+  transaction_type_code: string | null;
+  cycle: number | null;
+  recipient_committee_name: string | null;
+  other_entity_id: string | null;
+  sub_id: string | null;
+}
+
+export interface ContributionRecipientSummary {
+  recipient_entity_id: string | null;
+  recipient_name: string;
+  total_amount: number;
+  transaction_count: number;
+}
+
+export interface ContributionCycleSummary {
+  cycle: number;
+  total_amount: number;
+  transaction_count: number;
+}
+
+export interface ContributionSummary {
+  total_amount: number;
+  transaction_count: number;
+  by_recipient: ContributionRecipientSummary[];
+  by_cycle: ContributionCycleSummary[];
+}
+
+export interface ContributionSearchResult {
+  contributor_entity_id: string | null;
+  contributor_name: string;
+  total_amount: number;
+  transaction_count: number;
+  top_recipients: ContributionRecipientSummary[];
+}
+
+export interface CandidateSearchResult {
+  entity_id: string;
+  display_name: string;
+  candidate_fec_id: string;
+  party: string | null;
+  office: string | null;
+  office_state: string | null;
+  election_year: number | null;
+}
+
+export interface CandidateInfo {
+  entity_id: string;
+  candidate_fec_id: string;
+  party: string | null;
+  office: string | null;
+  office_state: string | null;
+  office_district: string | null;
+  incumbent_challenge: string | null;
+  election_year: number | null;
+  candidate_status: string | null;
+  principal_committee_fec_id: string | null;
+}
+
+export interface CommitteeInfo {
+  entity_id: string;
+  committee_fec_id: string;
+  committee_type: string | null;
+  committee_designation: string | null;
+  party: string | null;
+  treasurer_name: string | null;
+  organization_type: string | null;
+  connected_organization: string | null;
+}
+
+export interface MoneyFlowStep {
+  committee_entity_id: string | null;
+  committee_name: string;
+  committee_fec_id: string;
+  amount: number;
+  transaction_count: number;
+}
+
+export interface MoneyFlowResult {
+  from_entity_id: string;
+  to_candidate_id: string;
+  total_amount: number;
+  flows: MoneyFlowStep[];
+}
+
+export interface EntityContributionsResponse {
+  summary: ContributionSummary | null;
+  transactions: CampaignFinanceTransaction[];
+  candidate_info: CandidateInfo | null;
+  committee_info: CommitteeInfo | null;
+}
+
+// Campaign finance API functions
+
+export async function searchContributions(
+  q: string,
+  cycle?: number,
+  limit = 20
+): Promise<ContributionSearchResult[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  if (cycle) params.set("cycle", String(cycle));
+  const res = await fetch(`${API_BASE}/api/v1/contributions/search?${params}`);
+  if (!res.ok) throw new Error(`contributions search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getEntityContributions(
+  entityId: string,
+  cycle?: number
+): Promise<EntityContributionsResponse> {
+  const params = new URLSearchParams();
+  if (cycle) params.set("cycle", String(cycle));
+  const res = await fetch(`${API_BASE}/api/v1/entities/${entityId}/contributions?${params}`);
+  if (!res.ok) throw new Error(`contributions fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function searchCandidates(
+  q: string,
+  limit = 20
+): Promise<CandidateSearchResult[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/candidates/search?${params}`);
+  if (!res.ok) throw new Error(`candidates search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getMoneyFlow(
+  fromEntityId: string,
+  toCandidateId: string
+): Promise<MoneyFlowResult> {
+  const params = new URLSearchParams({
+    from_entity_id: fromEntityId,
+    to_candidate_id: toCandidateId,
+  });
+  const res = await fetch(`${API_BASE}/api/v1/contributions/flow?${params}`);
+  if (!res.ok) throw new Error(`money flow fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getTopDonors(
+  committeeId: string,
+  limit = 20
+): Promise<ContributionRecipientSummary[]> {
+  const params = new URLSearchParams({ committee_id: committeeId, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/contributions/top-donors?${params}`);
+  if (!res.ok) throw new Error(`top donors fetch failed: ${res.status}`);
+  return res.json();
 }

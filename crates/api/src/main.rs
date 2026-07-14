@@ -48,6 +48,20 @@ struct MetricsQuery {
     limit: Option<i64>,
 }
 
+#[derive(Deserialize)]
+struct MetricHistoryQuery {
+    from: Option<String>,
+    to: Option<String>,
+    limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct UnifiedSearchQuery {
+    q: String,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
@@ -201,8 +215,173 @@ async fn get_geo_public_money(
     Ok(Json(summary))
 }
 
+async fn get_metric_history(
+    State(state): State<Arc<AppState>>,
+    Path((geo_id, metric_id)): Path<(String, String)>,
+    Query(params): Query<MetricHistoryQuery>,
+) -> Result<Json<Vec<MetricObservationWithDetails>>, StatusCode> {
+    let limit = params.limit.unwrap_or(500).min(2000);
+    let from_date = params
+        .from
+        .as_deref()
+        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    let to_date = params
+        .to
+        .as_deref()
+        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+
+    let history =
+        queries::get_metric_history(&state.pool, &geo_id, &metric_id, from_date, to_date, limit)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(history))
+}
+
+async fn get_derived_metric_history(
+    State(state): State<Arc<AppState>>,
+    Path((geo_id, metric_id)): Path<(String, String)>,
+    Query(params): Query<MetricHistoryQuery>,
+) -> Result<Json<Vec<DerivedMetricObservation>>, StatusCode> {
+    let limit = params.limit.unwrap_or(500).min(2000);
+
+    let history = queries::get_derived_metric_history(&state.pool, &geo_id, &metric_id, limit)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(history))
+}
+
+async fn unified_search(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<UnifiedSearchQuery>,
+) -> Result<Json<UnifiedSearchResult>, StatusCode> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let offset = params.offset.unwrap_or(0);
+
+    let result = queries::unified_search(&state.pool, &params.q, limit, offset)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(result))
+}
+
+async fn get_entity_economic_context(
+    State(state): State<Arc<AppState>>,
+    Path(entity_id): Path<Uuid>,
+) -> Result<Json<Vec<StateProfile>>, StatusCode> {
+    let profiles = queries::get_entity_economic_context(&state.pool, entity_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(profiles))
+}
+
+// Campaign finance endpoints
+
+#[derive(Deserialize)]
+struct ContributionSearchQuery {
+    q: String,
+    cycle: Option<i32>,
+    limit: Option<i64>,
+}
+
+async fn search_contributions(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ContributionSearchQuery>,
+) -> Result<Json<Vec<ContributionSearchResult>>, StatusCode> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let results = queries::search_contributions(&state.pool, &params.q, params.cycle, limit)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(results))
+}
+
+#[derive(Deserialize)]
+struct EntityContributionsQuery {
+    cycle: Option<i32>,
+}
+
+#[derive(Deserialize)]
+struct ContributionFlowQuery {
+    from_entity_id: Uuid,
+    to_candidate_id: Uuid,
+}
+
+async fn get_entity_contributions(
+    State(state): State<Arc<AppState>>,
+    Path(entity_id): Path<Uuid>,
+    Query(params): Query<EntityContributionsQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let summary = queries::get_entity_contribution_summary(&state.pool, entity_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let transactions = queries::get_entity_transactions(&state.pool, entity_id, params.cycle, 500)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let candidate_info = queries::get_candidate_info(&state.pool, entity_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let committee_info = queries::get_committee_info(&state.pool, entity_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({
+        "summary": summary,
+        "transactions": transactions,
+        "candidate_info": candidate_info,
+        "committee_info": committee_info,
+    })))
+}
+
+async fn search_candidates_api(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<Vec<CandidateSearchResult>>, StatusCode> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let results = queries::search_candidates(&state.pool, &params.q, limit)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(results))
+}
+
+async fn get_contribution_flow(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ContributionFlowQuery>,
+) -> Result<Json<MoneyFlowResult>, StatusCode> {
+    let flow = queries::get_money_flow_to_candidate(
+        &state.pool,
+        params.from_entity_id,
+        params.to_candidate_id,
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(flow))
+}
+
+#[derive(Deserialize)]
+struct TopDonorsQuery {
+    committee_id: String,
+    limit: Option<i64>,
+}
+
+async fn get_top_donors(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<TopDonorsQuery>,
+) -> Result<Json<Vec<ContributionRecipientSummary>>, StatusCode> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let results = queries::get_top_donors_to_committee(&state.pool, &params.committee_id, limit)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(results))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -219,9 +398,14 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/api/v1/search", get(unified_search))
         .route("/api/v1/entities/search", get(search_entities))
         .route("/api/v1/entities/search/fuzzy", get(fuzzy_search_entities))
         .route("/api/v1/entities/{id}", get(get_entity))
+        .route(
+            "/api/v1/entities/{entity_id}/economic-context",
+            get(get_entity_economic_context),
+        )
         .route("/api/v1/entities/{entity_id}/awards", get(get_awards))
         .route("/api/v1/entities/{entity_id}/lobbying", get(get_lobbying))
         .route("/api/v1/entities/{entity_id}/edges", get(get_edges))
@@ -233,6 +417,22 @@ async fn main() -> Result<()> {
             "/api/v1/geos/{geo_id}/public-money",
             get(get_geo_public_money),
         )
+        .route(
+            "/api/v1/geos/{geo_id}/metrics/{metric_id}/history",
+            get(get_metric_history),
+        )
+        .route(
+            "/api/v1/geos/{geo_id}/derived-metrics/{metric_id}/history",
+            get(get_derived_metric_history),
+        )
+        .route("/api/v1/contributions/search", get(search_contributions))
+        .route(
+            "/api/v1/entities/{entity_id}/contributions",
+            get(get_entity_contributions),
+        )
+        .route("/api/v1/candidates/search", get(search_candidates_api))
+        .route("/api/v1/contributions/flow", get(get_contribution_flow))
+        .route("/api/v1/contributions/top-donors", get(get_top_donors))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

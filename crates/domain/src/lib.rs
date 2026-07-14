@@ -11,6 +11,7 @@ pub enum EntityType {
     Person,
     Committee,
     Agency,
+    Candidate,
     Unknown,
 }
 
@@ -45,6 +46,7 @@ pub enum IdentifierType {
     Cik,
     Ein,
     FecCommitteeId,
+    FecCandidateId,
     LdaRegistrantId,
     LdaClientId,
     LdaLobbyistId,
@@ -150,6 +152,9 @@ pub enum EdgeType {
     CompanyDisclosedSubsidiary,
     AgencyPublishedRulemakingDocument,
     EntitySubmittedRulemakingComment,
+    CommitteeContributedToCandidate,
+    CommitteeTransferredToCommittee,
+    CandidateSupportedByCommittee,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -215,6 +220,103 @@ pub struct CampaignFinanceTransaction {
     pub occupation_text: Option<String>,
     pub transaction_type: Option<String>,
     pub evidence_id: Option<Uuid>,
+    pub contributor_city: Option<String>,
+    pub contributor_state: Option<String>,
+    pub contributor_zip: Option<String>,
+    pub committee_fec_id: Option<String>,
+    pub candidate_fec_id: Option<String>,
+    pub memo_text: Option<String>,
+    pub transaction_type_code: Option<String>,
+    pub cycle: Option<i32>,
+    pub recipient_committee_name: Option<String>,
+    pub other_entity_id: Option<Uuid>,
+    pub sub_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContributionSummary {
+    pub total_amount: f64,
+    pub transaction_count: i64,
+    pub by_recipient: Vec<ContributionRecipientSummary>,
+    pub by_cycle: Vec<ContributionCycleSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContributionRecipientSummary {
+    pub recipient_entity_id: Option<Uuid>,
+    pub recipient_name: String,
+    pub total_amount: f64,
+    pub transaction_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContributionCycleSummary {
+    pub cycle: i32,
+    pub total_amount: f64,
+    pub transaction_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContributionSearchResult {
+    pub contributor_entity_id: Option<Uuid>,
+    pub contributor_name: String,
+    pub total_amount: f64,
+    pub transaction_count: i64,
+    pub top_recipients: Vec<ContributionRecipientSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateSearchResult {
+    pub entity_id: Uuid,
+    pub display_name: String,
+    pub candidate_fec_id: String,
+    pub party: Option<String>,
+    pub office: Option<String>,
+    pub office_state: Option<String>,
+    pub election_year: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoneyFlowResult {
+    pub from_entity_id: Uuid,
+    pub to_candidate_id: Uuid,
+    pub total_amount: f64,
+    pub flows: Vec<MoneyFlowStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoneyFlowStep {
+    pub committee_entity_id: Option<Uuid>,
+    pub committee_name: String,
+    pub committee_fec_id: String,
+    pub amount: f64,
+    pub transaction_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateInfo {
+    pub entity_id: Uuid,
+    pub candidate_fec_id: String,
+    pub party: Option<String>,
+    pub office: Option<String>,
+    pub office_state: Option<String>,
+    pub office_district: Option<String>,
+    pub incumbent_challenge: Option<String>,
+    pub election_year: Option<i32>,
+    pub candidate_status: Option<String>,
+    pub principal_committee_fec_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitteeInfo {
+    pub entity_id: Uuid,
+    pub committee_fec_id: String,
+    pub committee_type: Option<String>,
+    pub committee_designation: Option<String>,
+    pub party: Option<String>,
+    pub treasurer_name: Option<String>,
+    pub organization_type: Option<String>,
+    pub connected_organization: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,6 +373,14 @@ pub struct EntitySummary {
 pub struct SearchResult {
     pub entities: Vec<EntitySummary>,
     pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedSearchResult {
+    pub entities: Vec<EntitySummary>,
+    pub entity_total: i64,
+    pub geos: Vec<Geo>,
+    pub geo_total: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -455,6 +565,7 @@ mod tests {
             ("person", EntityType::Person),
             ("committee", EntityType::Committee),
             ("agency", EntityType::Agency),
+            ("candidate", EntityType::Candidate),
             ("unknown", EntityType::Unknown),
         ];
         for (expected, variant) in &variants {
@@ -482,6 +593,9 @@ mod tests {
             EdgeType::CompanyDisclosedSubsidiary,
             EdgeType::AgencyPublishedRulemakingDocument,
             EdgeType::EntitySubmittedRulemakingComment,
+            EdgeType::CommitteeContributedToCandidate,
+            EdgeType::CommitteeTransferredToCommittee,
+            EdgeType::CandidateSupportedByCommittee,
         ];
         for edge in &edges {
             let json = serde_json::to_string(edge).unwrap();
@@ -505,6 +619,29 @@ mod tests {
             let json = serde_json::to_string(source).unwrap();
             let back: IdentifierSource = serde_json::from_str(&json).unwrap();
             assert_eq!(&back, source);
+        }
+    }
+
+    #[test]
+    fn test_identifier_type_serialization() {
+        let types = [
+            IdentifierType::Uei,
+            IdentifierType::Cik,
+            IdentifierType::Ein,
+            IdentifierType::FecCommitteeId,
+            IdentifierType::FecCandidateId,
+            IdentifierType::LdaRegistrantId,
+            IdentifierType::LdaClientId,
+            IdentifierType::LdaLobbyistId,
+            IdentifierType::AgencySlug,
+            IdentifierType::DocketId,
+            IdentifierType::Ticker,
+            IdentifierType::AwardId,
+        ];
+        for t in &types {
+            let json = serde_json::to_string(t).unwrap();
+            let back: IdentifierType = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, t, "roundtrip failed for {:?}", t);
         }
     }
 

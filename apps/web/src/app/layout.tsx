@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "FundingFlow | Federal Intelligence",
   description:
     "Political-economy data platform for public money, private power, and household pressure.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-[#0a0a0a] text-slate-200 antialiased font-sans min-h-screen selection:bg-emerald-500/30">
+      <body className="ff-shell bg-[#050505] text-slate-200 antialiased font-sans min-h-screen">
         {children}
       </body>
     </html>

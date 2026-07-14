@@ -31,15 +31,9 @@ struct FilingsWrapper {
 #[derive(Debug, Deserialize)]
 #[allow(non_snake_case, dead_code)]
 struct RecentFilings {
-    #[serde(default)]
     accessionNumber: Vec<String>,
-    #[serde(default)]
-    form: Vec<String>,
-    #[serde(default)]
-    filingDate: Vec<String>,
-    #[serde(default)]
     reportDate: Vec<String>,
-    #[serde(default)]
+    form: Vec<String>,
     primaryDocument: Vec<String>,
 }
 
@@ -51,21 +45,22 @@ struct CompanyFactsResponse {
     facts: Option<serde_json::Value>,
 }
 
-const SAMPLE_CIKS: &[&str] = &[
-    "0000789019", // Microsoft
-    "0000320193", // Apple
-    "0001018724", // Amazon
-    "0001652044", // Alphabet
-    "0001326801", // Meta
-];
-
 pub struct SecImporter {
     pub base_url: String,
     pub client: reqwest::Client,
+    max_companies: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct CompanyTicker {
+    cik_str: u64,
+    ticker: String,
+    title: String,
 }
 
 impl SecImporter {
-    pub fn new(base_url: impl Into<String>) -> Self {
+    pub fn new(base_url: impl Into<String>, limit: usize) -> Self {
         Self {
             base_url: base_url.into(),
             client: reqwest::Client::builder()
@@ -73,6 +68,7 @@ impl SecImporter {
                 .user_agent("FundingFlow/0.1 (public-record research) contact@example.com")
                 .build()
                 .unwrap(),
+            max_companies: if limit == 0 { usize::MAX } else { limit },
         }
     }
 }
@@ -94,14 +90,26 @@ impl Importer for SecImporter {
             errors: 0,
         };
 
-        let padded_cik = |raw: &str| -> String {
-            let cleaned: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
-            format!("CIK{:0>10}", cleaned)
-        };
+        let tickers_url = "https://www.sec.gov/files/company_tickers.json";
+        info!("SEC: fetching company tickers from {}", tickers_url);
+        let resp = self
+            .client
+            .get(tickers_url)
+            .header("User-Agent", "FundingFlow/0.1 contact@example.com")
+            .send()
+            .await?;
 
-        for raw_cik in SAMPLE_CIKS {
-            let cik_str = raw_cik.to_string();
-            let padded = padded_cik(raw_cik);
+        let body = resp.text().await?;
+        let companies: std::collections::HashMap<String, CompanyTicker> =
+            serde_json::from_str(&body)?;
+
+        info!("SEC: found {} registered companies", companies.len());
+
+        let padded_cik = |raw: u64| -> String { format!("CIK{:0>10}", raw) };
+
+        for company in companies.values().take(self.max_companies) {
+            let cik_str = company.cik_str.to_string();
+            let padded = padded_cik(company.cik_str);
 
             tokio::time::sleep(std::time::Duration::from_millis(120)).await;
             let submissions_url = format!("{}/submissions/{padded}.json", self.base_url);
@@ -130,7 +138,7 @@ impl Importer for SecImporter {
             let body_text = resp.text().await?;
             let hash = content_hash(&body_text);
 
-            let _source_record = match queries::create_source_record(
+            let _source_record = match queries::upsert_source_record(
                 pool,
                 "sec",
                 "submissions",
@@ -226,7 +234,7 @@ impl Importer for SecImporter {
                 if resp.status().is_success() {
                     if let Ok(body) = resp.text().await {
                         let facts_hash = content_hash(&body);
-                        let fact_record = queries::create_source_record(
+                        let fact_record = queries::upsert_source_record(
                             pool,
                             "sec",
                             "companyfacts",

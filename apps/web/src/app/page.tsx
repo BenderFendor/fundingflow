@@ -1,162 +1,246 @@
-// Design thesis: Bold, blocky Bento Box with solid colors and big typography.
-"use client";
-
-import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { formatMoney, searchEntities } from "@/lib/types";
-import type { EntitySummary } from "@/lib/types";
-import { useRouter } from "next/navigation";
+import { getNationalPulse, formatMoney, formatMetricValue } from "@/lib/types";
+import { HomeSearch } from "./home-search";
+import { CropMarks, Decimals } from "@/components/ui";
 
-export default function HomePage() {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<EntitySummary[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+// Public Ledger Terminal: dense financial UI with oversized evidence numbers and simple comparison graphics.
+const featuredStates = [
+  { code: "PA", name: "Pennsylvania", focus: "Federal awards, rent, wages", accent: "bg-[#e96b4c] text-black" },
+  { code: "CA", name: "California", focus: "Labor markets and housing pressure", accent: "bg-[#d2f1ec] text-black" },
+  { code: "TX", name: "Texas", focus: "Energy, contracts, and payrolls", accent: "bg-[#f8df1d] text-black" },
+  { code: "NY", name: "New York", focus: "Income, rents, and public money", accent: "bg-[#a69ad1] text-black" },
+];
 
-  async function handleSearch(e: FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
-    setLoading(true);
-    try {
-      const data = await searchEntities(query.trim());
-      setResults(data.entities);
-      setTotal(data.total);
-    } catch {
-      setResults([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
+const pulseBars = [44, 70, 38, 86, 58, 74, 48, 62, 91, 53, 76, 66];
+
+export default async function HomePage() {
+  let pulse = null;
+  try {
+    pulse = await getNationalPulse();
+  } catch {
+    // The page still works as a search shell when the local API is offline.
   }
 
+  const value = (metricId: string): number | null => {
+    if (!pulse) return null;
+    const match = pulse.latest_metrics.find(
+      (item) => item.observation.metric_id === metricId,
+    );
+    return match?.observation.value ?? null;
+  };
+
+  const nationalCards = pulse
+    ? [
+        { label: "Unemployment", value: value("unemployment_rate"), unit: "percent", href: null },
+        { label: "Payroll jobs change", value: value("payroll_jobs_change"), unit: "jobs", href: null },
+        { label: "Avg hourly earnings", value: value("avg_hourly_earnings"), unit: "usd_per_hour", href: null },
+        { label: "Median weekly earnings", value: value("median_weekly_earnings"), unit: "usd_per_week", href: null },
+        { label: "Food at home CPI YoY", value: value("food_at_home_cpi_yoy"), unit: "percent", href: "/cost-basket" },
+        { label: "Ground beef", value: value("ground_beef_price"), unit: "usd_per_lb", href: "/cost-basket" },
+        { label: "Chicken breast", value: value("chicken_breast_price"), unit: "usd_per_lb", href: "/cost-basket" },
+        { label: "Milk", value: value("milk_price"), unit: "usd_per_gallon", href: "/cost-basket" },
+        { label: "Bread", value: value("white_bread_price"), unit: "usd_per_lb", href: "/cost-basket" },
+        { label: "Gasoline", value: value("regular_gas_price"), unit: "usd_per_gallon", href: null },
+      ]
+    : [];
+
+  const derivedCards = pulse?.derived_metrics
+    ? pulse.derived_metrics.map((d) => ({
+        label: d.metric_id === "food_basket_cost" ? "Food basket" : "Basket share",
+        value: d.value,
+        unit: d.metric_id === "food_basket_cost" ? "usd" : "percent",
+        formula: d.formula,
+        vintage: d.vintage_date,
+      }))
+    : [];
+  const heroMetric = derivedCards[0];
+  const vintage = pulse?.latest_metrics[0]?.observation.vintage_date ?? "offline";
+
   return (
-    <div className="min-h-screen bg-bento-dark text-white font-sans relative flex flex-col px-4 py-8">
-      <header className="w-full max-w-6xl mx-auto flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold tracking-tighter">FundingFlow</h1>
-        <nav className="flex items-center gap-4 text-sm font-medium">
-          <Link href="/states/PA" className="border border-white/20 px-4 py-1.5 rounded-full hover:bg-white/10 transition">Pennsylvania</Link>
-          <Link href="/methodology" className="bg-white text-black px-4 py-1.5 rounded-full hover:bg-gray-200 transition">Methodology</Link>
-          <Link href="/data" className="border border-white/20 px-4 py-1.5 rounded-full hover:bg-white/10 transition">Data Lineage</Link>
+    <div className="min-h-screen text-white font-sans">
+      <header className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/" className="ff-sans-wide text-3xl tracking-tighter text-white hover:opacity-70 ff-fluid">
+          FundingFlow
+        </Link>
+        <nav className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          {featuredStates.map((state) => (
+            <Link
+              key={state.code}
+              href={`/states/${state.code}`}
+              className="ff-focus-ring font-mono border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-slate-300 ff-fluid"
+            >
+              {state.code}
+            </Link>
+          ))}
+          <Link href="/cost-basket" className="ff-focus-ring font-mono border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-slate-300 ff-fluid">
+            FOOD PRICES
+          </Link>
+          <Link href="/data" className="ff-focus-ring font-mono border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-slate-300 ff-fluid">
+            DATA LINEAGE
+          </Link>
+          <Link href="/methodology" className="ff-focus-ring font-mono bg-[#f8df1d] text-black px-5 py-2 rounded-full transition-colors hover:bg-amber-400 ff-fluid">
+            METHODOLOGY
+          </Link>
         </nav>
       </header>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-4">
-        
-        {/* Search Bento Box */}
-        <div className="col-span-1 md:col-span-12 bg-bento-purple rounded-[2rem] p-8 md:p-12 text-black flex flex-col justify-center min-h-[320px]">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-4 leading-tight">
-            Trace the flow<br />of federal power.
-          </h2>
-          <p className="text-lg md:text-xl font-medium opacity-80 max-w-2xl mb-8">
-            Public-record graph for federal spending, lobbying, campaign finance,
-            corporate disclosures, labor markets, rent pressure, food costs, and energy prices.
-          </p>
-          
-          <form onSubmit={handleSearch} className="w-full max-w-2xl relative">
-            <div className="relative flex items-center bg-black rounded-2xl overflow-hidden shadow-xl">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search organizations, people, or identifiers..."
-                className="w-full bg-transparent py-5 px-6 text-xl text-white placeholder:text-gray-400 focus:outline-none"
-              />
-              <button type="submit" className="px-8 py-5 text-lg font-bold text-black bg-bento-yellow hover:bg-[#e6c700] transition-colors">
-                Search
-              </button>
+      <main className="mx-auto w-full max-w-7xl px-4 pb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 border border-white/10 bg-black">
+          <section className="relative overflow-hidden p-8 sm:p-12 lg:col-span-8 lg:min-h-[560px] border-b lg:border-b-0 lg:border-r border-white/10">
+            <CropMarks className="text-white/10" />
+            <div className="ff-serif absolute -right-4 bottom-2 hidden text-[28rem] leading-none text-white/[0.02] lg:block select-none pointer-events-none">
+              01
             </div>
-          </form>
-        </div>
-
-        <div className="col-span-1 md:col-span-12 grid grid-cols-1 gap-4 md:grid-cols-4">
-          {[
-            ["PA", "Pennsylvania"],
-            ["CA", "California"],
-            ["TX", "Texas"],
-            ["NY", "New York"],
-          ].map(([code, name]) => (
-            <Link
-              key={code}
-              href={`/states/${code}`}
-              className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/10"
-            >
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
-                State Profile
-              </span>
-              <h3 className="mt-2 text-2xl font-black">{name}</h3>
-              <p className="mt-2 text-sm text-slate-400">
-                Labor, rent, food, energy, and public-money conditions.
-              </p>
-            </Link>
-          ))}
-        </div>
-
-        {/* Results Area */}
-        {loading && (
-          <div className="col-span-1 md:col-span-12 bg-bento-cardbg rounded-[2rem] p-12 flex justify-center items-center">
-            <div className="text-2xl font-bold animate-pulse text-white">Loading data...</div>
-          </div>
-        )}
-
-        {results !== null && !loading && (
-          <div className="col-span-1 md:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="col-span-1 md:col-span-2 lg:col-span-3 mb-2 flex items-center justify-between">
-              <h3 className="text-2xl font-bold text-white">Search Results</h3>
-              <span className="text-lg font-medium bg-white text-black px-4 py-1 rounded-full">{total} Found</span>
-            </div>
-
-            {results.length === 0 ? (
-              <div className="col-span-1 md:col-span-3 bg-bento-cardbg rounded-[2rem] p-12 text-center">
-                <p className="text-xl font-medium text-gray-400">No entities matched your query.</p>
+            <div className="relative z-10 flex min-h-[500px] flex-col justify-between">
+              <div className="max-w-3xl">
+                <span className="font-mono text-[10px] font-black text-[#DFFF00] uppercase tracking-widest">
+                  Public records graph
+                </span>
+                <h1 className="ff-sans-wide mt-6 text-5xl font-black leading-[0.9] tracking-tighter sm:text-7xl lg:text-8xl text-white">
+                  Trace the flow of federal power.
+                </h1>
+                <p className="mt-8 max-w-2xl text-base font-medium leading-relaxed text-slate-400 sm:text-lg">
+                  Search entities, states, awards, lobbying filings, wage pressure, food costs, and energy signals from one source-backed workspace.
+                </p>
               </div>
-            ) : (
-              results.map((entity, i) => {
-                // cycle through some colors for the cards
-                const bgs = ["bg-bento-cardbg text-white", "bg-bento-olive text-black", "bg-[#e5e7eb] text-black", "bg-bento-orange text-black"];
-                const colorClass = bgs[i % bgs.length];
+              <div className="mt-12">
+                <HomeSearch />
+              </div>
+            </div>
+          </section>
 
-                return (
-                  <button
-                    key={entity.id}
-                    onClick={() => router.push(`/entities/${entity.id}`)}
-                    className={`col-span-1 rounded-[2rem] p-6 text-left transition-transform hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between min-h-[220px] ${colorClass}`}
+          <aside className="grid grid-cols-1 lg:col-span-4 content-start">
+            <div className="relative overflow-hidden p-8 text-white border-b border-white/10">
+              <CropMarks className="text-white/10" />
+              <p className="font-mono text-[10px] font-black text-[#DFFF00] uppercase tracking-widest">
+                National pulse
+              </p>
+              <div className="mt-8">
+                <p className="ff-pixel text-[6rem] sm:text-[7rem] tracking-tight leading-none text-white">
+                  {heroMetric ? (
+                    <Decimals>
+                      {heroMetric.unit === "usd" ? formatMoney(heroMetric.value) : `${heroMetric.value.toFixed(2)}%`}
+                    </Decimals>
+                  ) : "--"}
+                </p>
+                <p className="mt-3 font-mono text-[10px] font-medium text-slate-500 uppercase tracking-widest">
+                  {heroMetric?.label ?? "API offline"} / vintage {vintage}
+                </p>
+              </div>
+              <div className="mt-8 flex h-20 items-end gap-[1px]">
+                {pulseBars.map((height, index) => (
+                  <div
+                    key={`pulse-bar-${index}`}
+                    className="flex-1 bg-[#DFFF00] transition-opacity hover:opacity-100"
+                    style={{ height: `${height}%`, opacity: index % 3 === 0 ? 0.8 : 0.2 }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden p-8">
+              <CropMarks className="text-white/10" />
+              <p className="font-mono text-[10px] font-black text-[#DFFF00] uppercase tracking-widest">
+                Default state deck
+              </p>
+              <div className="mt-8 grid grid-cols-2 gap-[1px] bg-white/10 border border-white/10 p-[1px]">
+                {featuredStates.map((state) => (
+                  <Link
+                    key={state.code}
+                    href={`/states/${state.code}`}
+                    className="ff-focus-ring group relative overflow-hidden bg-black p-5 transition-colors hover:bg-white/5"
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${colorClass.includes('text-white') ? 'bg-white/20' : 'bg-black/10'}`}>
-                          {entity.entity_type}
-                        </span>
-                      </div>
-                      <h4 className="text-2xl font-bold leading-tight mb-2">{entity.display_name}</h4>
-                    </div>
-                    
-                    <div>
-                      <div className="flex gap-4 mb-4">
-                        <div className="flex flex-col">
-                          <span className={`text-sm font-bold opacity-60`}>IDs</span>
-                          <span className="text-xl font-bold">{entity.identifier_count}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className={`text-sm font-bold opacity-60`}>Awards</span>
-                          <span className="text-xl font-bold">{entity.award_count}</span>
-                        </div>
-                      </div>
-                      
-                      {entity.total_obligations != null && (
-                        <div className="flex flex-col mt-auto pt-4 border-t border-black/10">
-                          <span className={`text-sm font-bold opacity-60`}>Obligations</span>
-                          <span className="text-2xl font-bold tracking-tight">
-                            {formatMoney(entity.total_obligations)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })
+                    <p className="ff-pixel text-[4rem] tracking-tighter leading-none text-white">{state.code}</p>
+                    <p className="mt-4 font-mono text-[10px] font-black uppercase tracking-widest text-[#DFFF00]">{state.name}</p>
+                    <p className="mt-1 font-mono text-[9px] font-medium opacity-50 uppercase tracking-wider text-slate-400">{state.focus}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+        {pulse ? (
+          <section className="mt-8 border border-white/10 bg-black">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between p-8 border-b border-white/10">
+              <div>
+                <p className="ff-micro text-[10px] font-black text-[#DFFF00] uppercase tracking-widest">
+                  Evidence board
+                </p>
+                <h2 className="ff-sans-wide text-4xl font-black tracking-tighter text-white mt-2">National conditions</h2>
+              </div>
+              <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                {pulse.geo.name} / {pulse.latest_metrics.length} latest metrics
+              </span>
+            </div>
+
+            {derivedCards.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 border-b border-white/10 bg-white/10 gap-[1px]">
+                {derivedCards.map((card, index) => (
+                  <div
+                    key={card.label}
+                    className="relative overflow-hidden p-8 text-white bg-black transition-colors hover:bg-white/5"
+                  >
+                    <CropMarks className="opacity-20" />
+                    <span className="ff-micro text-[10px] font-black opacity-80 uppercase tracking-widest text-[#DFFF00]">{card.label}</span>
+                    <p className="ff-pixel mt-6 text-[5rem] tracking-tighter leading-none">
+                      <Decimals>
+                        {card.unit === "usd" ? formatMoney(card.value) : `${card.value.toFixed(2)}%`}
+                      </Decimals>
+                    </p>
+                    <p className="mt-8 max-w-xl font-mono text-[10px] font-medium opacity-60 leading-relaxed uppercase tracking-wider">{card.formula}</p>
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-[1px] bg-white/10">
+              {nationalCards.map((card, index) => {
+                const content = (
+                  <div className="relative overflow-hidden min-h-48 p-6 transition-colors hover:bg-white/5 bg-black flex flex-col justify-between">
+                    <CropMarks className="text-white/10" />
+                    <div>
+                      <p className="ff-micro text-[9px] font-black text-slate-400 leading-tight uppercase tracking-widest">
+                        {card.label}
+                      </p>
+                      <p className="ff-pixel mt-4 text-[2.5rem] tracking-tighter leading-none text-white">
+                        {card.value != null ? (
+                          <Decimals>
+                            {formatMetricValue(card.value, card.unit)}
+                          </Decimals>
+                        ) : "--"}
+                      </p>
+                    </div>
+                    <div className="mt-8 flex h-8 items-end gap-[1px]">
+                      {[36, 58, 45, 76, 62, 88].map((bar, barIndex) => (
+                        <span
+                          key={`${card.label}-${barIndex}`}
+                          className="flex-1 bg-white/20"
+                          style={{ height: `${Math.max(16, bar - index * 2)}%` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+                return card.href ? (
+                  <Link key={card.label} href={card.href} className="block">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={card.label}>{content}</div>
+                );
+              })}
+            </div>
+            <div className="p-6 border-t border-white/10">
+              <p className="font-mono text-[9px] uppercase tracking-widest leading-relaxed text-slate-600 max-w-4xl">
+                BLS CPI-U U.S. city average and average price data. Food items are national, not state-level. Petroleum prices are U.S. regular conventional retail average.
+              </p>
+            </div>
+          </section>
+        ) : (
+          <section className="relative overflow-hidden border border-dashed border-white/20 p-10 text-center text-[10px] font-mono uppercase tracking-widest text-slate-500 lg:col-span-12 mt-8">
+            <CropMarks className="text-slate-800" />
+            National pulse data is unavailable. Start the API server and run economic imports to populate live metrics.
+          </section>
         )}
       </main>
     </div>

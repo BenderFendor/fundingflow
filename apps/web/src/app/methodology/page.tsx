@@ -2,25 +2,31 @@ import Link from "next/link";
 
 export default function MethodologyPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">
+    <main className="mx-auto min-h-screen max-w-4xl px-6 py-12 text-slate-100">
+      <Link href="/" className="ff-focus-ring ff-micro text-sm font-black text-slate-500 hover:text-slate-200">
         &larr; Back to search
       </Link>
 
-      <h1 className="mt-6 text-3xl font-bold">Methodology</h1>
+      <section className="ff-paper ff-heavy-border mt-6 rounded-[1.75rem] p-6 text-black sm:p-8">
+        <p className="ff-micro text-xs font-black text-black/50">Evidence rules</p>
+        <h1 className="mt-3 text-6xl font-black leading-[0.9] tracking-[-0.08em]">Methodology</h1>
+        <p className="mt-4 max-w-2xl text-lg font-semibold text-black/65">
+          Public records are stored with source records, evidence rows, neutral edges, and visible limitations.
+        </p>
+      </section>
 
-      <section className="mt-8">
+      <section className="ff-terminal mt-8 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">How FundingFlow Works</h2>
-        <p className="mt-3 text-gray-600">
+        <p className="mt-3 text-slate-400">
           FundingFlow ingests public records from federal data sources, creates
           canonical entities for organizations, people, committees, and
           agencies, then links them through source-backed relationship edges.
         </p>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-terminal mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Entity Resolution</h2>
-        <p className="mt-3 text-gray-600">
+        <p className="mt-3 text-slate-400">
           Entities are matched across data sources using deterministic
           identifiers first (UEI, CIK, FEC committee ID, LDA registrant/client
           ID), then exact normalized-name matching, then PostgreSQL pg_trgm
@@ -29,9 +35,9 @@ export default function MethodologyPage() {
         </p>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-terminal mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Evidence And Provenance</h2>
-        <p className="mt-3 text-gray-600">
+        <p className="mt-3 text-slate-400">
           Every relationship edge, entity identifier, metric, and award record
           links back to a source record and evidence row. Source records store
           the original API response, retrieval timestamp, content hash, and
@@ -40,9 +46,9 @@ export default function MethodologyPage() {
         </p>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-terminal mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Edge Types</h2>
-        <p className="mt-3 text-gray-600">
+        <p className="mt-3 text-slate-400">
           Relationship edges use neutral labels that describe the documented
           relationship without inferring causation or intent. For example,
           money moving from an agency to a recipient is labeled
@@ -53,9 +59,9 @@ export default function MethodologyPage() {
         </p>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-terminal mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Data Sources</h2>
-        <ul className="mt-3 space-y-3 text-gray-600">
+        <ul className="mt-3 space-y-3 text-slate-400">
           <li>
             <strong>USAspending.gov</strong> &mdash; Federal awards, recipients,
             agencies, award dates, and obligation amounts. Bulk awards API with
@@ -88,9 +94,9 @@ export default function MethodologyPage() {
         </ul>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-blueprint mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Economic Conditions Layer</h2>
-        <p className="mt-3 text-gray-600">
+        <p className="mt-3 text-[#f3f0d9]/75">
           Economic observations preserve source, date, release date, and vintage
           date. Derived indicators are stored separately with their formulas and
           input metrics so users can distinguish agency data from FundingFlow
@@ -98,9 +104,9 @@ export default function MethodologyPage() {
         </p>
       </section>
 
-      <section className="mt-10">
+      <section className="ff-terminal mt-6 rounded-[1.5rem] p-6">
         <h2 className="text-xl font-semibold">Limitations</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-6 text-gray-600">
+        <ul className="mt-3 list-disc space-y-2 pl-6 text-slate-400">
           <li>
             Employer names in campaign finance records are user-entered text.
             They are treated as weak evidence and linked with lower confidence.

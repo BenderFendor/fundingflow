@@ -47,7 +47,7 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|all|migrate|import-<source
   frontend    Install npm deps and start Next.js dev server (starts Postgres too)
   all         Run backend and frontend together (default)
   migrate     Run database migrations only
-  import-<s>  Import data from <s> (usaspending, lda, fec, sec, rulemaking)
+  import-<s>  Import data from <s> (usaspending, lda, fec, sec, rulemaking, economic-fixture, bls-laus, bls-cpi-prices, census-acs)
   killall     Stop processes spawned by previous runlocal.sh runs
   help        Show this message
 

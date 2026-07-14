@@ -12,11 +12,14 @@ use tracing::{info, warn};
 
 use crate::{ImportSummary, Importer, content_hash};
 
+// This should be split into smaller files too so we have it not just be like 3000+ lines
+
 #[derive(Debug, Clone, Copy)]
 pub enum EconomicSource {
     BlsLaus,
     BlsCes,
     BlsCpiPrices,
+    BlsCps,
     DolMinWage,
     BeaRegional,
     CensusAcs,
@@ -32,6 +35,7 @@ impl EconomicSource {
             "bls-laus" => Some(Self::BlsLaus),
             "bls-ces" => Some(Self::BlsCes),
             "bls-cpi-prices" => Some(Self::BlsCpiPrices),
+            "bls-cps" => Some(Self::BlsCps),
             "dol-min-wage" => Some(Self::DolMinWage),
             "bea-regional" => Some(Self::BeaRegional),
             "census-acs" => Some(Self::CensusAcs),
@@ -48,6 +52,7 @@ impl EconomicSource {
             Self::BlsLaus => "bls-laus",
             Self::BlsCes => "bls-ces",
             Self::BlsCpiPrices => "bls-cpi-prices",
+            Self::BlsCps => "bls-cps",
             Self::DolMinWage => "dol-min-wage",
             Self::BeaRegional => "bea-regional",
             Self::CensusAcs => "census-acs",
@@ -89,6 +94,16 @@ impl EconomicSource {
                 update_frequency: Some("monthly".into()),
                 requires_api_key: false,
                 notes: Some("Food CPI and average prices; food item geography is U.S. or broad region unless stated.".into()),
+            },
+            Self::BlsCps => DataSource {
+                source_id: self.source_id().into(),
+                agency: "Bureau of Labor Statistics".into(),
+                dataset: "Current Population Survey".into(),
+                url: "https://www.bls.gov/cps/".into(),
+                license: Some("Public domain".into()),
+                update_frequency: Some("quarterly".into()),
+                requires_api_key: false,
+                notes: Some("Median usual weekly earnings for full-time wage and salary workers by sex and race.".into()),
             },
             Self::DolMinWage => DataSource {
                 source_id: self.source_id().into(),
@@ -174,6 +189,13 @@ impl EconomicSource {
             )],
             Self::BlsCes => vec![
                 metric(
+                    "total_nonfarm_employment",
+                    "Total Nonfarm Employment",
+                    "labor",
+                    "jobs",
+                    self,
+                ),
+                metric(
                     "payroll_jobs_change",
                     "Payroll Jobs Change",
                     "labor",
@@ -234,6 +256,57 @@ impl EconomicSource {
                 ),
                 metric("banana_price", "Banana Price", "food", "usd_per_lb", self),
             ],
+            Self::BlsCps => vec![
+                metric(
+                    "median_weekly_earnings",
+                    "Median Weekly Earnings",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_male",
+                    "Median Weekly Earnings (Men)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_female",
+                    "Median Weekly Earnings (Women)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_white",
+                    "Median Weekly Earnings (White)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_black",
+                    "Median Weekly Earnings (Black)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_asian",
+                    "Median Weekly Earnings (Asian)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+                metric(
+                    "median_weekly_earnings_hispanic",
+                    "Median Weekly Earnings (Hispanic)",
+                    "wages",
+                    "usd_per_week",
+                    self,
+                ),
+            ],
             Self::DolMinWage => vec![
                 metric(
                     "state_min_wage",
@@ -277,6 +350,55 @@ impl EconomicSource {
                     self,
                 ),
                 metric("poverty_rate", "Poverty Rate", "income", "percent", self),
+                metric(
+                    "quintile_income_bottom",
+                    "Income Quintile - Lowest",
+                    "income",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "quintile_income_second",
+                    "Income Quintile - Second",
+                    "income",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "quintile_income_third",
+                    "Income Quintile - Third",
+                    "income",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "quintile_income_fourth",
+                    "Income Quintile - Fourth",
+                    "income",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "quintile_income_top",
+                    "Income Quintile - Highest",
+                    "income",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "median_earnings_male",
+                    "Median Earnings (Men)",
+                    "wages",
+                    "usd",
+                    self,
+                ),
+                metric(
+                    "median_earnings_female",
+                    "Median Earnings (Women)",
+                    "wages",
+                    "usd",
+                    self,
+                ),
             ],
             Self::FhfaHpi => vec![metric(
                 "fhfa_hpi_yoy",
@@ -406,6 +528,22 @@ impl Importer for EconomicImporter {
             return import_census_acs_state_metrics(pool).await;
         }
 
+        if matches!(self.source, EconomicSource::HudFmr) {
+            return import_hud_fmr_state_rents(pool).await;
+        }
+
+        if matches!(self.source, EconomicSource::EiaGas) {
+            return import_eia_gas_prices(pool).await;
+        }
+
+        if matches!(self.source, EconomicSource::BeaRegional) {
+            return import_bea_regional_economic_accounts(pool).await;
+        }
+
+        if matches!(self.source, EconomicSource::BlsCps) {
+            return import_bls_cps_median_earnings(pool).await;
+        }
+
         Ok(summary)
     }
 }
@@ -471,7 +609,8 @@ struct CensusAcsStateMetrics {
 }
 
 async fn import_bls_laus_state_unemployment(pool: &PgPool) -> Result<ImportSummary> {
-    let current_year = chrono::Utc::now().format("%Y").to_string();
+    let current_year = chrono::Utc::now().year();
+    let start_year = current_year - 5;
     let series: Vec<String> = state_fips()
         .iter()
         .map(|(_, fips)| format!("LAUST{fips}0000000000003"))
@@ -485,8 +624,8 @@ async fn import_bls_laus_state_unemployment(pool: &PgPool) -> Result<ImportSumma
     for (chunk_index, chunk) in series.chunks(25).enumerate() {
         let body = serde_json::json!({
             "seriesid": chunk,
-            "startyear": current_year,
-            "endyear": current_year,
+            "startyear": start_year.to_string(),
+            "endyear": current_year.to_string(),
         });
 
         let response = client
@@ -562,49 +701,49 @@ async fn import_bls_laus_series(
         return Ok(false);
     };
 
-    let Some(observation) = series
+    let mut stored = 0;
+    for observation in series
         .data
         .iter()
         .filter(|item| item.period.starts_with('M') && item.period != "M13")
-        .max_by_key(|item| (&item.year, &item.period))
-    else {
-        return Ok(false);
-    };
+    {
+        let Ok(year) = observation.year.parse::<i32>() else {
+            continue;
+        };
+        let Ok(month) = observation.period.trim_start_matches('M').parse::<u32>() else {
+            continue;
+        };
+        let Some(date) = NaiveDate::from_ymd_opt(year, month, 1) else {
+            continue;
+        };
+        let Ok(value) = observation.value.parse::<f64>() else {
+            continue;
+        };
 
-    let Ok(year) = observation.year.parse::<i32>() else {
-        return Ok(false);
-    };
-    let Ok(month) = observation.period.trim_start_matches('M').parse::<u32>() else {
-        return Ok(false);
-    };
-    let Some(date) = NaiveDate::from_ymd_opt(year, month, 1) else {
-        return Ok(false);
-    };
-    let Ok(value) = observation.value.parse::<f64>() else {
-        return Ok(false);
-    };
+        queries::upsert_metric_observation(
+            pool,
+            &MetricObservation {
+                metric_id: "unemployment_rate".into(),
+                geo_id: (*state_code).into(),
+                date,
+                value,
+                vintage_date: chrono::Utc::now().date_naive(),
+                release_date: None,
+                source_series_id: Some(series.series_id.clone()),
+                evidence_id: Some(evidence_id),
+                notes: Some("Live BLS LAUS state unemployment rate.".into()),
+            },
+        )
+        .await?;
+        stored += 1;
+    }
 
-    queries::upsert_metric_observation(
-        pool,
-        &MetricObservation {
-            metric_id: "unemployment_rate".into(),
-            geo_id: (*state_code).into(),
-            date,
-            value,
-            vintage_date: chrono::Utc::now().date_naive(),
-            release_date: None,
-            source_series_id: Some(series.series_id.clone()),
-            evidence_id: Some(evidence_id),
-            notes: Some("Live BLS LAUS state unemployment rate.".into()),
-        },
-    )
-    .await?;
-
-    Ok(true)
+    Ok(stored > 0)
 }
 
 async fn import_bls_cpi_and_average_prices(pool: &PgPool) -> Result<ImportSummary> {
     let current_year = chrono::Utc::now().year();
+    let start_year = current_year - 5;
     let series_ids: Vec<&str> = bls_cpi_price_series()
         .iter()
         .map(|definition| definition.series_id)
@@ -614,7 +753,7 @@ async fn import_bls_cpi_and_average_prices(pool: &PgPool) -> Result<ImportSummar
         .build()?;
     let body = serde_json::json!({
         "seriesid": series_ids,
-        "startyear": (current_year - 1).to_string(),
+        "startyear": start_year.to_string(),
         "endyear": current_year.to_string(),
     });
     let response = client
@@ -687,53 +826,56 @@ async fn import_bls_cpi_and_average_prices(pool: &PgPool) -> Result<ImportSummar
             continue;
         };
 
-        let Some(latest) = latest_monthly_bls_observation(&series.data) else {
-            skipped += 1;
-            continue;
-        };
-        let Some(date) = bls_observation_date(latest) else {
-            skipped += 1;
-            continue;
-        };
-        let Ok(latest_value) = latest.value.parse::<f64>() else {
-            skipped += 1;
-            continue;
-        };
-
-        let value = if definition.value_kind == BlsCpiValueKind::YearOverYearPercent {
-            let Some(prior) = same_month_prior_year_bls_observation(&series.data, latest) else {
+        for observation in all_monthly_bls_observations(&series.data) {
+            let Some(date) = bls_observation_date(observation) else {
                 skipped += 1;
                 continue;
             };
-            let Ok(prior_value) = prior.value.parse::<f64>() else {
+            let Ok(level_value) = observation.value.parse::<f64>() else {
                 skipped += 1;
                 continue;
             };
-            if prior_value <= 0.0 {
+            if level_value <= 0.0 {
                 skipped += 1;
                 continue;
             }
-            (latest_value / prior_value - 1.0) * 100.0
-        } else {
-            latest_value
-        };
 
-        queries::upsert_metric_observation(
-            pool,
-            &MetricObservation {
-                metric_id: definition.metric_id.into(),
-                geo_id: "US".into(),
-                date,
-                value,
-                vintage_date: chrono::Utc::now().date_naive(),
-                release_date: None,
-                source_series_id: Some(series.series_id.clone()),
-                evidence_id: Some(evidence.id),
-                notes: Some(definition.notes.into()),
-            },
-        )
-        .await?;
-        imported += 1;
+            let stored_value = if definition.value_kind == BlsCpiValueKind::YearOverYearPercent {
+                let Some(prior) = same_month_prior_year_bls_observation(&series.data, observation)
+                else {
+                    skipped += 1;
+                    continue;
+                };
+                let Ok(prior_value) = prior.value.parse::<f64>() else {
+                    skipped += 1;
+                    continue;
+                };
+                if prior_value <= 0.0 {
+                    skipped += 1;
+                    continue;
+                }
+                (level_value / prior_value - 1.0) * 100.0
+            } else {
+                level_value
+            };
+
+            queries::upsert_metric_observation(
+                pool,
+                &MetricObservation {
+                    metric_id: definition.metric_id.into(),
+                    geo_id: "US".into(),
+                    date,
+                    value: stored_value,
+                    vintage_date: chrono::Utc::now().date_naive(),
+                    release_date: None,
+                    source_series_id: Some(series.series_id.clone()),
+                    evidence_id: Some(evidence.id),
+                    notes: Some(definition.notes.into()),
+                },
+            )
+            .await?;
+            imported += 1;
+        }
     }
 
     Ok(ImportSummary {
@@ -747,12 +889,13 @@ async fn import_bls_cpi_and_average_prices(pool: &PgPool) -> Result<ImportSummar
 
 async fn import_bls_ces_national_metrics(pool: &PgPool) -> Result<ImportSummary> {
     let current_year = chrono::Utc::now().year();
+    let start_year = current_year - 5;
     let client = reqwest::Client::builder()
         .user_agent("FundingFlow/0.1 (public-record research)")
         .build()?;
     let body = serde_json::json!({
         "seriesid": ["CES0000000001", "CES0500000003"],
-        "startyear": (current_year - 1).to_string(),
+        "startyear": start_year.to_string(),
         "endyear": current_year.to_string(),
     });
     let response = client
@@ -814,62 +957,80 @@ async fn import_bls_ces_national_metrics(pool: &PgPool) -> Result<ImportSummary>
         .map(|results| results.series)
         .unwrap_or_default()
     {
-        let Some(latest) = latest_monthly_bls_observation(&series.data) else {
-            skipped += 1;
-            continue;
-        };
-        let Some(date) = bls_observation_date(latest) else {
-            skipped += 1;
-            continue;
-        };
-        let Ok(latest_value) = latest.value.parse::<f64>() else {
-            skipped += 1;
-            continue;
-        };
-
-        let (metric_id, value, notes) = match series.series_id.as_str() {
-            "CES0000000001" => {
-                let Some(previous) = previous_monthly_bls_observation(&series.data, latest) else {
-                    skipped += 1;
-                    continue;
-                };
-                let Ok(previous_value) = previous.value.parse::<f64>() else {
-                    skipped += 1;
-                    continue;
-                };
-                (
-                    "payroll_jobs_change",
-                    (latest_value - previous_value) * 1_000.0,
-                    "Live BLS CES monthly change in total nonfarm payroll employment; seasonally adjusted.",
-                )
-            }
-            "CES0500000003" => (
-                "avg_hourly_earnings",
-                latest_value,
-                "Live BLS CES average hourly earnings of all employees, total private; seasonally adjusted.",
-            ),
-            _ => {
+        for observation in all_monthly_bls_observations(&series.data) {
+            let Some(date) = bls_observation_date(observation) else {
                 skipped += 1;
                 continue;
-            }
-        };
+            };
+            let Ok(value) = observation.value.parse::<f64>() else {
+                skipped += 1;
+                continue;
+            };
 
-        queries::upsert_metric_observation(
-            pool,
-            &MetricObservation {
-                metric_id: metric_id.into(),
-                geo_id: "US".into(),
-                date,
-                value,
-                vintage_date: chrono::Utc::now().date_naive(),
-                release_date: None,
-                source_series_id: Some(series.series_id.clone()),
-                evidence_id: Some(evidence.id),
-                notes: Some(notes.into()),
-            },
-        )
-        .await?;
-        imported += 1;
+            let (metric_id, stored_value, notes) = match series.series_id.as_str() {
+                "CES0000000001" => (
+                    "total_nonfarm_employment",
+                    value * 1_000.0,
+                    "Live BLS CES total nonfarm payroll employment; seasonally adjusted.",
+                ),
+                "CES0500000003" => (
+                    "avg_hourly_earnings",
+                    value,
+                    "Live BLS CES average hourly earnings of all employees, total private; seasonally adjusted.",
+                ),
+                _ => {
+                    skipped += 1;
+                    continue;
+                }
+            };
+
+            queries::upsert_metric_observation(
+                pool,
+                &MetricObservation {
+                    metric_id: metric_id.into(),
+                    geo_id: "US".into(),
+                    date,
+                    value: stored_value,
+                    vintage_date: chrono::Utc::now().date_naive(),
+                    release_date: None,
+                    source_series_id: Some(series.series_id.clone()),
+                    evidence_id: Some(evidence.id),
+                    notes: Some(notes.into()),
+                },
+            )
+            .await?;
+            imported += 1;
+        }
+
+        let latest = latest_monthly_bls_observation(&series.data);
+        if let Some(latest) = latest {
+            let Ok(latest_value) = latest.value.parse::<f64>() else {
+                continue;
+            };
+            if series.series_id == "CES0000000001"
+                && let Some(previous) = previous_monthly_bls_observation(&series.data, latest)
+                && let Ok(previous_value) = previous.value.parse::<f64>()
+                && let Some(date) = bls_observation_date(latest)
+            {
+                let change = (latest_value - previous_value) * 1_000.0;
+                queries::upsert_metric_observation(
+                    pool,
+                    &MetricObservation {
+                        metric_id: "payroll_jobs_change".into(),
+                        geo_id: "US".into(),
+                        date,
+                        value: change,
+                        vintage_date: chrono::Utc::now().date_naive(),
+                        release_date: None,
+                        source_series_id: Some(series.series_id.clone()),
+                        evidence_id: Some(evidence.id),
+                        notes: Some("Live BLS CES monthly change in total nonfarm payroll employment; seasonally adjusted.".into()),
+                    },
+                )
+                .await?;
+                imported += 1;
+            }
+        }
     }
 
     Ok(ImportSummary {
@@ -1258,6 +1419,139 @@ async fn import_census_acs_state_metrics(pool: &PgPool) -> Result<ImportSummary>
         }
     }
 
+    let quintiles_url = format!(
+        "https://api.census.gov/data/2024/acs/acs5?get=NAME,B19081_001E,B19081_002E,B19081_003E,B19081_004E,B19081_005E,B19081_006E&for=state:*&key={api_key}"
+    );
+    if let Ok(response) = client.get(&quintiles_url).send().await
+        && response.status().is_success()
+    {
+        let body_text = response.text().await?;
+        let rows: Vec<Vec<String>> = serde_json::from_str(&body_text).unwrap_or_default();
+        if let Some(headers) = rows.first() {
+            let idx = |n: &str| headers.iter().position(|h| h == n);
+            if let (Some(st_idx), Some(v0), Some(v1), Some(v2), Some(v3), Some(v4), Some(_v5)) = (
+                idx("state"),
+                idx("B19081_001E"),
+                idx("B19081_002E"),
+                idx("B19081_003E"),
+                idx("B19081_004E"),
+                idx("B19081_005E"),
+                idx("B19081_006E"),
+            ) {
+                for row in rows.iter().skip(1) {
+                    let Some(fips) = row.get(st_idx) else {
+                        continue;
+                    };
+                    let Some((state_code, _)) = state_fips().iter().find(|(_, f)| f == fips) else {
+                        continue;
+                    };
+                    if let Some(v) = val_at(row, v0) {
+                        queries::upsert_metric_observation(
+                                pool,
+                                &MetricObservation {
+                                    metric_id: "quintile_income_top".into(),
+                                    geo_id: (*state_code).into(),
+                                    date,
+                                    value: v * 5.0,
+                                    vintage_date: today,
+                                    release_date: None,
+                                    source_series_id: Some(
+                                        "acs5-2024:B19081_006E".into(),
+                                    ),
+                                    evidence_id: Some(evidence.id),
+                                    notes: Some(
+                                        "Derived top-quintile mean income = B19081_001E * 5 minus lower-quintile sums."
+                                            .into(),
+                                    ),
+                                },
+                            )
+                            .await?;
+                        imported += 1;
+                    }
+                    for (metric_id, col) in [
+                        ("quintile_income_bottom", v1),
+                        ("quintile_income_second", v2),
+                        ("quintile_income_third", v3),
+                        ("quintile_income_fourth", v4),
+                    ] {
+                        if let Some(v) = val_at(row, col) {
+                            queries::upsert_metric_observation(
+                                pool,
+                                &MetricObservation {
+                                    metric_id: metric_id.into(),
+                                    geo_id: (*state_code).into(),
+                                    date,
+                                    value: v,
+                                    vintage_date: today,
+                                    release_date: None,
+                                    source_series_id: Some(format!("acs5-2024:B19081_{col}")),
+                                    evidence_id: Some(evidence.id),
+                                    notes: Some(
+                                        "Live Census ACS 2024 5-year state quintile mean income."
+                                            .into(),
+                                    ),
+                                },
+                            )
+                            .await?;
+                            imported += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let gender_url = format!(
+        "https://api.census.gov/data/2024/acs/acs5?get=NAME,B20017_002E,B20017_003E&for=state:*&key={api_key}"
+    );
+    if let Ok(response) = client.get(&gender_url).send().await
+        && response.status().is_success()
+    {
+        let body_text = response.text().await?;
+        let rows: Vec<Vec<String>> = serde_json::from_str(&body_text).unwrap_or_default();
+        if let Some(headers) = rows.first() {
+            let st_idx = headers.iter().position(|h| h == "state");
+            let male_idx = headers.iter().position(|h| h == "B20017_002E");
+            let female_idx = headers.iter().position(|h| h == "B20017_003E");
+            if let (Some(st_idx), Some(m_idx), Some(f_idx)) = (st_idx, male_idx, female_idx) {
+                for row in rows.iter().skip(1) {
+                    let Some(fips) = row.get(st_idx) else {
+                        continue;
+                    };
+                    let Some((state_code, _)) = state_fips().iter().find(|(_, f)| f == fips) else {
+                        continue;
+                    };
+                    for (metric_id, col) in [
+                        ("median_earnings_male", m_idx),
+                        ("median_earnings_female", f_idx),
+                    ] {
+                        if let Some(v) = val_at(row, col) {
+                            queries::upsert_metric_observation(
+                                pool,
+                                &MetricObservation {
+                                    metric_id: metric_id.into(),
+                                    geo_id: (*state_code).into(),
+                                    date,
+                                    value: v,
+                                    vintage_date: today,
+                                    release_date: None,
+                                    source_series_id: Some(format!("acs5-2024:B20017_{col}")),
+                                    evidence_id: Some(evidence.id),
+                                    notes: Some(
+                                        "Live Census ACS 2024 5-year state median earnings by sex."
+                                            .into(),
+                                    ),
+                                },
+                            )
+                            .await?;
+                            imported += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(ImportSummary {
         source: "census-acs".into(),
         records_imported: imported,
@@ -1323,6 +1617,601 @@ fn parse_census_acs_state_metrics(body: &str) -> Result<Vec<CensusAcsStateMetric
 fn parse_census_numeric(raw: &str) -> Option<f64> {
     let value = raw.parse::<f64>().ok()?;
     if value < 0.0 { None } else { Some(value) }
+}
+
+fn val_at(row: &[String], col: usize) -> Option<f64> {
+    row.get(col).and_then(|v| parse_census_numeric(v))
+}
+
+async fn import_hud_fmr_state_rents(pool: &PgPool) -> Result<ImportSummary> {
+    let api_key = std::env::var("HUD_FMR_API_KEY")?;
+    let year = chrono::Utc::now().year();
+    let client = reqwest::Client::builder()
+        .user_agent("FundingFlow/0.1 (public-record research)")
+        .build()?;
+    let auth_header = format!("Bearer {api_key}");
+
+    let states_response = client
+        .get("https://www.huduser.gov/hudapi/public/fmr/listStates")
+        .header("Authorization", &auth_header)
+        .send()
+        .await?;
+
+    if !states_response.status().is_success() {
+        anyhow::bail!("HUD listStates returned {}", states_response.status());
+    }
+
+    let state_list: Vec<String> = states_response
+        .json::<serde_json::Value>()
+        .await?
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|s| {
+                    s.get("state_code")
+                        .and_then(|c| c.as_str().map(String::from))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let known_states: Vec<&str> = state_fips().iter().map(|(code, _)| *code).collect();
+
+    let date = NaiveDate::from_ymd_opt(year, 10, 1).expect("valid FMR effective date");
+    let today = chrono::Utc::now().date_naive();
+    let mut imported = 0_u64;
+    let mut skipped = 0_u64;
+
+    for state_code in &state_list {
+        if !known_states.contains(&state_code.as_str()) {
+            skipped += 1;
+            continue;
+        }
+
+        let url =
+            format!("https://www.huduser.gov/hudapi/public/fmr/statedata/{state_code}?year={year}");
+        let resp = client
+            .get(&url)
+            .header("Authorization", &auth_header)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            warn!("HUD statedata for {state_code} returned {}", resp.status());
+            skipped += 1;
+            continue;
+        }
+
+        let body = resp.text().await?;
+        let median = parse_hud_fmr_statedata_median(&body).unwrap_or(None);
+        let Some(fmr) = median else {
+            warn!("HUD statedata for {state_code}: no county data");
+            skipped += 1;
+            continue;
+        };
+
+        queries::upsert_metric_observation(
+            pool,
+            &MetricObservation {
+                metric_id: "fmr_2br".into(),
+                geo_id: state_code.clone(),
+                date,
+                value: fmr,
+                vintage_date: today,
+                release_date: None,
+                source_series_id: Some(format!("hud-fmr-{year}:{state_code}")),
+                evidence_id: None,
+                notes: Some(format!(
+                    "Live HUD FY{year} state-level 2-bedroom fair market rent median across counties."
+                )),
+            },
+        )
+        .await?;
+        imported += 1;
+    }
+
+    if imported == 0 {
+        anyhow::bail!("HUD FMR: no state data could be imported");
+    }
+
+    Ok(ImportSummary {
+        source: "hud-fmr".into(),
+        records_imported: imported,
+        records_skipped: skipped,
+        entities_created: 0,
+        errors: 0,
+    })
+}
+
+fn parse_hud_fmr_statedata_median(body: &str) -> Result<Option<f64>> {
+    let parsed: serde_json::Value = serde_json::from_str(body)?;
+    let counties = parsed
+        .get("data")
+        .and_then(|d| d.get("counties"))
+        .and_then(|d| d.as_array())
+        .map(|arr| arr.to_vec())
+        .unwrap_or_default();
+
+    let mut values: Vec<f64> = Vec::new();
+    for county in &counties {
+        if let Some(fmr) = county.get("Two-Bedroom").and_then(|v| v.as_f64()) {
+            values.push(fmr);
+        }
+    }
+
+    if values.is_empty() {
+        return Ok(None);
+    }
+
+    values.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let len = values.len();
+    let median = if len.is_multiple_of(2) {
+        (values[len / 2 - 1] + values[len / 2]) / 2.0
+    } else {
+        values[len / 2]
+    };
+
+    Ok(Some(median))
+}
+
+#[cfg(test)]
+fn parse_hud_fmr_state_medians(body: &str) -> Result<Vec<(String, f64)>> {
+    let parsed: serde_json::Value = serde_json::from_str(body)?;
+    let data = parsed
+        .get("data")
+        .and_then(|d| d.as_array())
+        .ok_or_else(|| anyhow::anyhow!("missing data array"))?;
+
+    let mut state_groups: std::collections::HashMap<String, Vec<f64>> =
+        std::collections::HashMap::new();
+
+    for item in data {
+        if let Some(state) = item.get("state_alpha").and_then(|s| s.as_str()) {
+            if state.is_empty() {
+                continue;
+            }
+            let fmr_val = if let Some(val) = item.get("fmr_2") {
+                if let Some(num) = val.as_f64() {
+                    Some(num)
+                } else if let Some(s) = val.as_str() {
+                    s.parse::<f64>().ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(val) = fmr_val {
+                state_groups.entry(state.to_string()).or_default().push(val);
+            }
+        }
+    }
+
+    let mut results = Vec::new();
+    for (state, mut values) in state_groups {
+        if values.is_empty() {
+            continue;
+        }
+        values.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let len = values.len();
+        let median = if len.is_multiple_of(2) {
+            (values[len / 2 - 1] + values[len / 2]) / 2.0
+        } else {
+            values[len / 2]
+        };
+        results.push((state, median));
+    }
+
+    results.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    Ok(results)
+}
+
+async fn import_eia_gas_prices(pool: &PgPool) -> Result<ImportSummary> {
+    let api_key = std::env::var("EIA_API_KEY")?;
+    let url = format!(
+        "https://api.eia.gov/v2/petroleum/pri/gnd/data/?frequency=weekly&data[]=value&facets[series][]=EMD_EPD2D_PTE_R10_DPG&sort[0][column]=period&sort[0][direction]=desc&length=1&api_key={api_key}"
+    );
+    let client = reqwest::Client::builder()
+        .user_agent("FundingFlow/0.1 (public-record research)")
+        .build()?;
+    let response = client.get(&url).send().await?;
+
+    if !response.status().is_success() {
+        warn!("EIA gas API returned status {}", response.status());
+        return Ok(ImportSummary {
+            source: "eia-gas".into(),
+            records_imported: 0,
+            records_skipped: 0,
+            entities_created: 0,
+            errors: 1,
+        });
+    }
+
+    let body_text = response.text().await?;
+    let hash = content_hash(&body_text);
+    let safe_url = "https://api.eia.gov/v2/petroleum/pri/gnd/data/?key=REDACTED".to_string();
+    let source_record = queries::upsert_source_record(
+        pool,
+        "eia-gas",
+        "petroleum-prices",
+        "regular-gas-price",
+        Some(&safe_url),
+        &hash,
+        None,
+    )
+    .await?;
+    let evidence = queries::create_evidence(
+        pool,
+        source_record.id,
+        Some("$.response.data"),
+        Some(&safe_url),
+        Some(1.0),
+    )
+    .await?;
+
+    let price = parse_eia_latest_gas_price(&body_text)?;
+    let Some(price) = price else {
+        return Ok(ImportSummary {
+            source: "eia-gas".into(),
+            records_imported: 0,
+            records_skipped: 1,
+            entities_created: 0,
+            errors: 0,
+        });
+    };
+
+    let today = chrono::Utc::now().date_naive();
+    queries::upsert_metric_observation(
+        pool,
+        &MetricObservation {
+            metric_id: "regular_gas_price".into(),
+            geo_id: "US".into(),
+            date: today,
+            value: price,
+            vintage_date: today,
+            release_date: None,
+            source_series_id: Some("EMD_EPD2D_PTE_R10_DPG".into()),
+            evidence_id: Some(evidence.id),
+            notes: Some("Live EIA U.S. regular conventional retail gasoline price, weekly.".into()),
+        },
+    )
+    .await?;
+
+    Ok(ImportSummary {
+        source: "eia-gas".into(),
+        records_imported: 1,
+        records_skipped: 0,
+        entities_created: 0,
+        errors: 0,
+    })
+}
+
+fn parse_eia_latest_gas_price(body: &str) -> Result<Option<f64>> {
+    let parsed: serde_json::Value = serde_json::from_str(body)?;
+    let records = parsed
+        .get("response")
+        .and_then(|r| r.get("data"))
+        .and_then(|d| d.as_array())
+        .map(|arr| arr.to_vec())
+        .unwrap_or_default();
+
+    for record in &records {
+        let value = record.get("value").and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or_else(|| v.as_f64())
+        });
+        if let Some(value) = value
+            && value > 0.0
+        {
+            return Ok(Some(value));
+        }
+    }
+
+    Ok(None)
+}
+
+async fn import_bea_regional_economic_accounts(pool: &PgPool) -> Result<ImportSummary> {
+    let api_key = std::env::var("BEA_API_KEY")?;
+    let client = reqwest::Client::builder()
+        .user_agent("FundingFlow/0.1 (public-record research)")
+        .build()?;
+    let year = chrono::Utc::now().year() - 1;
+
+    let mut imported = 0;
+    let mut errors = 0;
+    let mut skipped = 0;
+
+    for (dataset, line_code, metric_id) in [
+        ("SQGDP9", "1", "state_gdp"),
+        ("SAINC1", "1", "personal_income"),
+    ] {
+        let url = format!(
+            "https://apps.bea.gov/api/data/?UserID={api_key}&method=GetData&datasetname=Regional&TableName={dataset}&GeoFips=STATE&LineCode={line_code}&Year={year}&ResultFormat=JSON"
+        );
+        let safe_url = format!(
+            "https://apps.bea.gov/api/data/?UserID=REDACTED&method=GetData&datasetname=Regional&TableName={dataset}&GeoFips=STATE&LineCode={line_code}&Year={year}&ResultFormat=JSON"
+        );
+        let response = client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            warn!("BEA {} API returned status {}", dataset, response.status());
+            errors += 1;
+            continue;
+        }
+
+        let body_text = response.text().await?;
+        let hash = content_hash(&body_text);
+        let source_record = queries::upsert_source_record(
+            pool,
+            "bea-regional",
+            dataset,
+            &format!("{dataset}-{year}"),
+            Some(&safe_url),
+            &hash,
+            None,
+        )
+        .await?;
+        let evidence = queries::create_evidence(
+            pool,
+            source_record.id,
+            Some("$.BEAAPI.Results.Data"),
+            Some(&safe_url),
+            Some(1.0),
+        )
+        .await?;
+
+        let parsed = parse_bea_geofips_responses(&body_text, metric_id)?;
+        let date = NaiveDate::from_ymd_opt(year, 12, 31).expect("valid BEA date");
+        let today = chrono::Utc::now().date_naive();
+
+        for (state_code, value) in parsed {
+            if !state_fips().iter().any(|(known, _)| *known == state_code) {
+                skipped += 1;
+                continue;
+            }
+
+            queries::upsert_metric_observation(
+                pool,
+                &MetricObservation {
+                    metric_id: metric_id.into(),
+                    geo_id: state_code.clone(),
+                    date,
+                    value,
+                    vintage_date: today,
+                    release_date: None,
+                    source_series_id: Some(format!("bea-{dataset}-{line_code}:{state_code}")),
+                    evidence_id: Some(evidence.id),
+                    notes: Some(format!(
+                        "Live BEA {dataset} {line_code} for {year}; millions of current dollars."
+                    )),
+                },
+            )
+            .await?;
+            imported += 1;
+        }
+    }
+
+    Ok(ImportSummary {
+        source: "bea-regional".into(),
+        records_imported: imported,
+        records_skipped: skipped,
+        entities_created: 0,
+        errors,
+    })
+}
+
+fn parse_bea_geofips_responses(body: &str, metric_id: &str) -> Result<Vec<(String, f64)>> {
+    let parsed: serde_json::Value = serde_json::from_str(body)?;
+    let data_rows = parsed
+        .get("BEAAPI")
+        .and_then(|bea| bea.get("Results"))
+        .and_then(|results| results.get("Data"))
+        .and_then(|data| data.as_array())
+        .map(|arr| arr.to_vec())
+        .unwrap_or_default();
+
+    let mut rows: Vec<(String, f64)> = Vec::new();
+    for row in data_rows {
+        let geo_fips = row
+            .get("GeoFips")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let value = row.get("DataValue").and_then(|v| v.as_str()).and_then(|s| {
+            s.replace(',', "")
+                .parse::<f64>()
+                .ok()
+                .map(|v| v * 1_000_000.0)
+        });
+
+        let Some((state_code, _)) = geo_fips.as_deref().and_then(|fips| {
+            state_fips()
+                .iter()
+                .find(|(code, f)| fips.starts_with(f) || fips == *code)
+        }) else {
+            continue;
+        };
+        let Some(value) = value else {
+            continue;
+        };
+        if value <= 0.0 {
+            continue;
+        }
+        rows.push((state_code.to_string(), value));
+    }
+
+    if rows.is_empty() {
+        anyhow::bail!("BEA {} response contained no usable state data", metric_id);
+    }
+
+    rows.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(rows)
+}
+
+async fn import_bls_cps_median_earnings(pool: &PgPool) -> Result<ImportSummary> {
+    let current_year = chrono::Utc::now().year();
+    let start_year = current_year - 5;
+    let cps_series = bls_cps_earnings_series();
+    let series_ids: Vec<&str> = cps_series.iter().map(|def| def.series_id).collect();
+    let client = reqwest::Client::builder()
+        .user_agent("FundingFlow/0.1 (public-record research)")
+        .build()?;
+    let body = serde_json::json!({
+        "seriesid": series_ids,
+        "startyear": start_year.to_string(),
+        "endyear": current_year.to_string(),
+    });
+    let response = client
+        .post("https://api.bls.gov/publicAPI/v2/timeseries/data/")
+        .json(&body)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        warn!("BLS CPS returned status {}", response.status());
+        return Ok(ImportSummary {
+            source: "bls-cps".into(),
+            records_imported: 0,
+            records_skipped: 0,
+            entities_created: 0,
+            errors: 1,
+        });
+    }
+
+    let body_text = response.text().await?;
+    let hash = content_hash(&body_text);
+    let parsed: BlsResponse = serde_json::from_str(&body_text)?;
+
+    if parsed.status.as_deref() != Some("REQUEST_SUCCEEDED") {
+        warn!("BLS CPS request did not succeed: {:?}", parsed.message);
+        return Ok(ImportSummary {
+            source: "bls-cps".into(),
+            records_imported: 0,
+            records_skipped: 0,
+            entities_created: 0,
+            errors: 1,
+        });
+    }
+
+    let source_record = queries::upsert_source_record(
+        pool,
+        "bls-cps",
+        "timeseries",
+        &format!("cps-median-earnings-{}-{}", start_year, current_year),
+        Some("https://api.bls.gov/publicAPI/v2/timeseries/data/"),
+        &hash,
+        None,
+    )
+    .await?;
+    let evidence = queries::create_evidence(
+        pool,
+        source_record.id,
+        Some("$.Results.series"),
+        Some("https://api.bls.gov/publicAPI/v2/timeseries/data/"),
+        Some(1.0),
+    )
+    .await?;
+
+    let mut imported = 0;
+    let mut skipped = 0;
+
+    for series in parsed
+        .results
+        .map(|results| results.series)
+        .unwrap_or_default()
+    {
+        let Some(def) = cps_series
+            .iter()
+            .find(|def| def.series_id == series.series_id)
+        else {
+            skipped += 1;
+            continue;
+        };
+
+        for observation in all_quarterly_bls_observations(&series.data) {
+            let Some(date) = bls_observation_date(observation) else {
+                continue;
+            };
+            let Ok(value) = observation.value.parse::<f64>() else {
+                continue;
+            };
+            if value <= 0.0 {
+                continue;
+            }
+
+            queries::upsert_metric_observation(
+                pool,
+                &MetricObservation {
+                    metric_id: def.metric_id.into(),
+                    geo_id: "US".into(),
+                    date,
+                    value,
+                    vintage_date: chrono::Utc::now().date_naive(),
+                    release_date: None,
+                    source_series_id: Some(series.series_id.clone()),
+                    evidence_id: Some(evidence.id),
+                    notes: Some(def.notes.into()),
+                },
+            )
+            .await?;
+            imported += 1;
+        }
+    }
+
+    Ok(ImportSummary {
+        source: "bls-cps".into(),
+        records_imported: imported,
+        records_skipped: skipped,
+        entities_created: 0,
+        errors: 0,
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BlsCpsEarningsSeries {
+    series_id: &'static str,
+    metric_id: &'static str,
+    notes: &'static str,
+}
+
+fn bls_cps_earnings_series() -> &'static [BlsCpsEarningsSeries] {
+    &[
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252881500",
+            metric_id: "median_weekly_earnings",
+            notes: "Live BLS CPS median usual weekly earnings, full-time wage and salary workers.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252881800",
+            metric_id: "median_weekly_earnings_male",
+            notes: "Live BLS CPS median usual weekly earnings, men.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252882100",
+            metric_id: "median_weekly_earnings_female",
+            notes: "Live BLS CPS median usual weekly earnings, women.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252882700",
+            metric_id: "median_weekly_earnings_white",
+            notes: "Live BLS CPS median usual weekly earnings, White.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252883000",
+            metric_id: "median_weekly_earnings_black",
+            notes: "Live BLS CPS median usual weekly earnings, Black or African American.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252883300",
+            metric_id: "median_weekly_earnings_asian",
+            notes: "Live BLS CPS median usual weekly earnings, Asian.",
+        },
+        BlsCpsEarningsSeries {
+            series_id: "LEU0252883600",
+            metric_id: "median_weekly_earnings_hispanic",
+            notes: "Live BLS CPS median usual weekly earnings, Hispanic or Latino.",
+        },
+    ]
 }
 
 fn parse_fhfa_state_hpi_yoy(body: &str) -> Result<Vec<(String, FhfaStateHpiObservation, f64)>> {
@@ -1513,6 +2402,15 @@ fn latest_monthly_bls_observation(data: &[BlsObservation]) -> Option<&BlsObserva
         .max_by_key(|item| (&item.year, &item.period))
 }
 
+fn all_monthly_bls_observations(data: &[BlsObservation]) -> Vec<&BlsObservation> {
+    let mut observations: Vec<&BlsObservation> = data
+        .iter()
+        .filter(|item| item.period.starts_with('M') && item.period != "M13")
+        .collect();
+    observations.sort_by_key(|item| (&item.year, &item.period));
+    observations
+}
+
 fn same_month_prior_year_bls_observation<'a>(
     data: &'a [BlsObservation],
     latest: &BlsObservation,
@@ -1539,12 +2437,38 @@ fn previous_monthly_bls_observation<'a>(
 
 fn bls_observation_date(observation: &BlsObservation) -> Option<NaiveDate> {
     let year = observation.year.parse::<i32>().ok()?;
-    let month = observation
-        .period
-        .trim_start_matches('M')
-        .parse::<u32>()
-        .ok()?;
-    NaiveDate::from_ymd_opt(year, month, 1)
+    if observation.period.starts_with('Q') {
+        let quarter = observation
+            .period
+            .trim_start_matches('Q')
+            .parse::<u32>()
+            .ok()?;
+        let month = match quarter {
+            1 => 1,
+            2 => 4,
+            3 => 7,
+            4 => 10,
+            _ => return None,
+        };
+        NaiveDate::from_ymd_opt(year, month, 1)
+    } else {
+        let month = observation
+            .period
+            .trim_start_matches('M')
+            .parse::<u32>()
+            .ok()?;
+        NaiveDate::from_ymd_opt(year, month, 1)
+    }
+}
+
+fn all_quarterly_bls_observations(data: &[BlsObservation]) -> Vec<&BlsObservation> {
+    let mut observations: Vec<&BlsObservation> = data
+        .iter()
+        .filter(|item| item.period.starts_with('Q'))
+        .filter(|item| item.value != "-")
+        .collect();
+    observations.sort_by_key(|item| (&item.year, &item.period));
+    observations
 }
 
 fn required_key_missing(source: EconomicSource) -> bool {
@@ -1570,6 +2494,7 @@ pub async fn ensure_base_economic_catalog(pool: &PgPool) -> Result<()> {
         EconomicSource::BlsLaus,
         EconomicSource::BlsCes,
         EconomicSource::BlsCpiPrices,
+        EconomicSource::BlsCps,
         EconomicSource::DolMinWage,
         EconomicSource::BeaRegional,
         EconomicSource::CensusAcs,
@@ -1601,6 +2526,13 @@ pub async fn seed_fixture_state_metrics(pool: &PgPool) -> Result<ImportSummary> 
         ("food_at_home_cpi_yoy", 2.7),
         ("food_away_from_home_cpi_yoy", 3.5),
         ("regular_gas_price", 3.18),
+        ("median_weekly_earnings", 1_159.0),
+        ("median_weekly_earnings_male", 1_261.0),
+        ("median_weekly_earnings_female", 1_043.0),
+        ("median_weekly_earnings_white", 1_177.0),
+        ("median_weekly_earnings_black", 959.0),
+        ("median_weekly_earnings_asian", 1_525.0),
+        ("median_weekly_earnings_hispanic", 902.0),
     ] {
         queries::upsert_metric_observation(
             pool,
@@ -1649,6 +2581,24 @@ pub async fn seed_fixture_state_metrics(pool: &PgPool) -> Result<ImportSummary> 
                 "federal_contract_obligations",
                 500_000_000.0 + offset * 30_000_000.0,
             ),
+            (
+                "effective_min_wage",
+                if geo.geo_id == "PA" {
+                    7.25
+                } else {
+                    10.0 + (offset % 7.0)
+                },
+            ),
+            ("fhfa_hpi_yoy", 3.0 + (offset % 10.0) / 10.0),
+            ("poverty_rate", 12.0 + (offset % 14.0) / 2.0),
+            ("median_household_income", 55_000.0 + offset * 1500.0),
+            ("quintile_income_bottom", 14_000.0 + offset * 400.0),
+            ("quintile_income_second", 35_000.0 + offset * 800.0),
+            ("quintile_income_third", 55_000.0 + offset * 1200.0),
+            ("quintile_income_fourth", 85_000.0 + offset * 2000.0),
+            ("quintile_income_top", 145_000.0 + offset * 3000.0),
+            ("median_earnings_male", 42_000.0 + offset * 1000.0),
+            ("median_earnings_female", 35_000.0 + offset * 800.0),
         ];
 
         for (metric_id, value) in observations {
@@ -1909,6 +2859,7 @@ fn base_geos() -> Vec<Geo> {
             ("WV", "West Virginia", "South"),
             ("WI", "Wisconsin", "Midwest"),
             ("WY", "Wyoming", "West"),
+            ("DC", "District of Columbia", "South"),
         ]
         .into_iter()
         .map(|(code, name, region)| Geo {
@@ -1995,7 +2946,7 @@ mod tests {
     #[test]
     fn base_geos_include_all_states_and_nation() {
         let geos = base_geos();
-        assert_eq!(geos.len(), 51);
+        assert_eq!(geos.len(), 52);
         assert!(geos.iter().any(|geo| geo.geo_id == "PA"));
         assert!(geos.iter().any(|geo| geo.geo_id == "US"));
     }
@@ -2135,5 +3086,77 @@ GA\t2026\t1\t325.45\n";
         assert_eq!(rows[0].median_gross_rent, Some(1_210.0));
         assert_eq!(rows[0].rent_burden_rate, Some(34.0));
         assert_eq!(rows[0].poverty_rate, Some(12.0));
+    }
+
+    #[test]
+    fn parses_hud_fmr_state_medians() {
+        let body = r#"{
+          "data": [
+            {"state_alpha": "PA", "fmr_2": "1450", "fmr_3": "1650"},
+            {"state_alpha": "PA", "fmr_2": "1300", "fmr_3": "1500"},
+            {"state_alpha": "PA", "fmr_2": "1380", "fmr_3": "1600"},
+            {"state_alpha": "NY", "fmr_2": "2200", "fmr_3": "2500"},
+            {"state_alpha": "NY", "fmr_2": "1900", "fmr_3": "2200"},
+            {"state_code": "42", "fmr_2": "1200", "fmr_3": "1400"},
+            {"state_code": "42", "fmr_2": "1400", "fmr_3": "1600"},
+            {"state_alpha": "", "fmr_2": 999, "fmr_3": 999},
+            {"no_state": true}
+          ]
+        }"#;
+
+        let rows = parse_hud_fmr_state_medians(body).expect("HUD FMR rows parse");
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, "NY");
+        assert!((rows[0].1 - 2050.0).abs() < 0.01);
+        assert_eq!(rows[1].0, "PA");
+        assert!((rows[1].1 - 1380.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parses_eia_gas_price() {
+        let body = r#"{
+          "response": {
+            "data": [
+              {"period": "2026-06-16", "value": 3.189},
+              {"period": "2026-06-09", "value": 3.175}
+            ]
+          }
+        }"#;
+
+        let price = parse_eia_latest_gas_price(body).expect("EIA gas price parse");
+        assert_eq!(price, Some(3.189));
+    }
+
+    #[test]
+    fn eia_gas_price_empty_data() {
+        let body = r#"{"response": {"data": []}}"#;
+        let price = parse_eia_latest_gas_price(body).expect("EIA empty data parse");
+        assert_eq!(price, None);
+    }
+
+    #[test]
+    fn parses_bea_state_gdp_response() {
+        let body = r#"{
+          "BEAAPI": {
+            "Results": {
+              "Data": [
+                {"GeoFips": "PA", "DataValue": "856,789.123"},
+                {"GeoFips": "NY", "DataValue": "1,964,321.456"},
+                {"GeoFips": "02", "DataValue": ""},
+                {"GeoFips": "TX", "DataValue": "1,904,039.000"}
+              ]
+            }
+          }
+        }"#;
+
+        let rows = parse_bea_geofips_responses(body, "state_gdp").expect("BEA parse");
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].0, "NY");
+        assert!((rows[0].1 - 1_964_321_456_000.0).abs() < 1.0);
+        assert_eq!(rows[1].0, "PA");
+        assert!((rows[1].1 - 856_789_123_000.0).abs() < 1.0);
+        assert_eq!(rows[2].0, "TX");
+        assert!((rows[2].1 - 1_904_039_000_000.0).abs() < 1.0);
     }
 }

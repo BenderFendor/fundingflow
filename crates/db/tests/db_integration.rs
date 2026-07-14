@@ -173,3 +173,165 @@ async fn test_lobbying_filings_for_entity() {
     assert!(!filings.is_empty());
     assert_eq!(filings[0].filing_type.as_deref(), Some("Q"));
 }
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_search_by_identifier_value() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::search_entities(&pool, "UEI-", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name == "Tesla Inc")
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_search_by_partial_name() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::search_entities(&pool, "Lockheed", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name.contains("Lockheed"))
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_search_person_by_partial_name() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::search_entities(&pool, "Bezos", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name.contains("Bezos"))
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_unified_search_finds_entities() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::unified_search(&pool, "Tesla", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.entity_total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name == "Tesla Inc")
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_unified_search_searches_identifiers() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::unified_search(&pool, "UEI-", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.entity_total >= 1);
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_fuzzy_search_returns_results_without_exact_match() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let results = db::queries::fuzzy_search_entities(&pool, "boing comp", 0.1, 10)
+        .await
+        .unwrap();
+    assert!(!results.is_empty());
+    assert!(results.iter().any(|e| e.display_name.contains("Boeing")));
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_entity_economic_context() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let (company_id, _) = &_seed.companies[0];
+    let profiles = db::queries::get_entity_economic_context(&pool, *company_id)
+        .await
+        .unwrap();
+    assert!(
+        profiles.is_empty() || profiles.iter().all(|p| !p.geo.geo_id.is_empty()),
+        "profiles should be empty or contain valid geo data"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_get_linked_geo_ids() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let (company_id, _) = &_seed.companies[0];
+    let geo_ids = db::queries::get_linked_geo_ids(&pool, *company_id)
+        .await
+        .unwrap();
+    assert!(geo_ids.is_empty() || geo_ids.iter().all(|g| !g.is_empty()));
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_search_case_insensitive() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::search_entities(&pool, "tesla", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name == "Tesla Inc")
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires database"]
+async fn test_empty_search_returns_results() {
+    let pool = setup_pool().await;
+    let _seed = seed_test_data(&pool).await;
+
+    let result = db::queries::search_entities(&pool, "general dynamics", 10, 0)
+        .await
+        .unwrap();
+    assert!(result.total >= 1);
+    assert!(
+        result
+            .entities
+            .iter()
+            .any(|e| e.display_name.contains("General Dynamics"))
+    );
+}
